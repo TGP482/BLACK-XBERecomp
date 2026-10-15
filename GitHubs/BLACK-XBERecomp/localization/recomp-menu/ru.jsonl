@@ -1,0 +1,93 @@
+{"key":"RECOMP SETTINGS","source_en":"RECOMP SETTINGS","text":"НАСТРОЙКИ RECOMP","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOUSE AND KEYBOARD","source_en":"MOUSE AND KEYBOARD","text":"МЫШЬ И КЛАВИАТУРА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GENERAL","source_en":"GENERAL","text":"ОБЩИЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DISPLAY","source_en":"DISPLAY","text":"ЭКРАН","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GRAPHICS","source_en":"GRAPHICS","text":"ГРАФИКА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PAGE","source_en":"PAGE","text":"СТРАНИЦА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RESTORE DEFAULTS","source_en":"RESTORE DEFAULTS","text":"ВОССТАНОВИТЬ НАСТРОЙКИ ПО УМОЛЧАНИЮ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PRESS A KEY","source_en":"PRESS A KEY","text":"НАЖМИТЕ КЛАВИШУ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"UNBOUND","source_en":"UNBOUND","text":"НЕ НАЗНАЧЕНО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MONITOR","source_en":"MONITOR","text":"МОНИТОР","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DISPLAY MODE","source_en":"DISPLAY MODE","text":"РЕЖИМ ОТОБРАЖЕНИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RESOLUTION","source_en":"RESOLUTION","text":"РАЗРЕШЕНИЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RENDER RESOLUTION","source_en":"RENDER RESOLUTION","text":"РАЗРЕШЕНИЕ РЕНДЕРА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FIELD OF VIEW","source_en":"FIELD OF VIEW","text":"ПОЛЕ ЗРЕНИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"VIEWMODEL FIELD OF VIEW","source_en":"VIEWMODEL FIELD OF VIEW","text":"ПОЛЕ ЗРЕНИЯ ОРУЖИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"VERTICAL SYNC","source_en":"VERTICAL SYNC","text":"ВЕРТИКАЛЬНАЯ СИНХРОНИЗАЦИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FMV SCALE","source_en":"FMV SCALE","text":"МАСШТАБ ВИДЕОРОЛИКОВ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FILL","source_en":"FILL","text":"ЗАПОЛНИТЬ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"HDR OUTPUT","source_en":"HDR OUTPUT","text":"ВЫВОД HDR","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MAX FRAME RATE","source_en":"MAX FRAME RATE","text":"МАКСИМАЛЬНАЯ ЧАСТОТА КАДРОВ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FPS COUNTER","source_en":"FPS COUNTER","text":"СЧЁТЧИК FPS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ANISOTROPIC FILTERING","source_en":"ANISOTROPIC FILTERING","text":"АНИЗОТРОПНАЯ ФИЛЬТРАЦИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DRAW DISTANCE","source_en":"DRAW DISTANCE","text":"ДАЛЬНОСТЬ ПРОРИСОВКИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AMBIENT OCCLUSION","source_en":"AMBIENT OCCLUSION","text":"ЗАТЕНЕНИЕ ОКРУЖЕНИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RELOAD BLUR","source_en":"RELOAD BLUR","text":"РАЗМЫТИЕ ПРИ ПЕРЕЗАРЯДКЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SKIP INTROS","source_en":"SKIP INTROS","text":"ПРОПУСКАТЬ ВСТУПИТЕЛЬНЫЕ РОЛИКИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PAUSE ON FOCUS LOSS","source_en":"PAUSE ON FOCUS LOSS","text":"ПАУЗА ПРИ ПОТЕРЕ ФОКУСА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LANGUAGE","source_en":"LANGUAGE","text":"ЯЗЫК","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AUDIO OUTPUT","source_en":"AUDIO OUTPUT","text":"ВЫВОД ЗВУКА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FULLSCREEN","source_en":"FULLSCREEN","text":"ПОЛНЫЙ ЭКРАН","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"WINDOWED","source_en":"WINDOWED","text":"ОКОННЫЙ РЕЖИМ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"BORDERLESS","source_en":"BORDERLESS","text":"ОКНО БЕЗ РАМКИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ON","source_en":"ON","text":"ВКЛЮЧЕНО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"OFF","source_en":"OFF","text":"ВЫКЛЮЧЕНО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"UNLIMITED","source_en":"UNLIMITED","text":"БЕЗ ОГРАНИЧЕНИЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"REFRESH RATE","source_en":"REFRESH RATE","text":"ЧАСТОТА ОБНОВЛЕНИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AUTOMATIC","source_en":"AUTOMATIC","text":"АВТОМАТИЧЕСКИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GAME DEFAULT","source_en":"GAME DEFAULT","text":"ПО УМОЛЧАНИЮ В ИГРЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"NOT SUPPORTED","source_en":"NOT SUPPORTED","text":"НЕ ПОДДЕРЖИВАЕТСЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MONO","source_en":"MONO","text":"МОНО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"2.0 STEREO","source_en":"2.0 STEREO","text":"СТЕРЕО 2.0","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"5.1 SURROUND","source_en":"5.1 SURROUND","text":"ОБЪЁМНЫЙ ЗВУК 5.1","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"(DEFAULT)","source_en":"(DEFAULT)","text":"(ПО УМОЛЧАНИЮ)","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"(RESTART)","source_en":"(RESTART)","text":"(ТРЕБУЕТСЯ ПЕРЕЗАПУСК)","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PRIMARY","source_en":"PRIMARY","text":"ОСНОВНОЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"(PRIMARY)","source_en":"(PRIMARY)","text":"(ОСНОВНОЙ)","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ENGLISH","source_en":"ENGLISH","text":"АНГЛИЙСКИЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FRENCH","source_en":"FRENCH","text":"ФРАНЦУЗСКИЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GERMAN","source_en":"GERMAN","text":"НЕМЕЦКИЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ITALIAN","source_en":"ITALIAN","text":"ИТАЛЬЯНСКИЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SPANISH","source_en":"SPANISH","text":"ИСПАНСКИЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOUSE SENSITIVITY","source_en":"MOUSE SENSITIVITY","text":"ЧУВСТВИТЕЛЬНОСТЬ МЫШИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"INVERT LOOK","source_en":"INVERT LOOK","text":"ИНВЕРТИРОВАТЬ ОБЗОР","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"HOLD TO AIM","source_en":"HOLD TO AIM","text":"УДЕРЖИВАТЬ ДЛЯ ПРИЦЕЛИВАНИЯ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"WALK SPEED","source_en":"WALK SPEED","text":"СКОРОСТЬ ХОДЬБЫ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOVE FORWARD","source_en":"MOVE FORWARD","text":"ДВИЖЕНИЕ ВПЕРЁД","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOVE BACK","source_en":"MOVE BACK","text":"ДВИЖЕНИЕ НАЗАД","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"STRAFE LEFT","source_en":"STRAFE LEFT","text":"ШАГ ВЛЕВО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"STRAFE RIGHT","source_en":"STRAFE RIGHT","text":"ШАГ ВПРАВО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"WALK","source_en":"WALK","text":"ИДТИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"CROUCH","source_en":"CROUCH","text":"ПРИСЕСТЬ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FIRE","source_en":"FIRE","text":"СТРЕЛЬБА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AIM","source_en":"AIM","text":"ПРИЦЕЛИВАНИЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MELEE","source_en":"MELEE","text":"РУКОПАШНЫЙ БОЙ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RELOAD","source_en":"RELOAD","text":"ПЕРЕЗАРЯДКА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"INTERACT","source_en":"INTERACT","text":"ВЗАИМОДЕЙСТВИЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"THROW GRENADE","source_en":"THROW GRENADE","text":"БРОСИТЬ ГРАНАТУ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"CHANGE WEAPON UP","source_en":"CHANGE WEAPON UP","text":"СЛЕДУЮЩЕЕ ОРУЖИЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"CHANGE WEAPON DOWN","source_en":"CHANGE WEAPON DOWN","text":"ПРЕДЫДУЩЕЕ ОРУЖИЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"TOGGLE SUPPRESSOR","source_en":"TOGGLE SUPPRESSOR","text":"ВКЛЮЧИТЬ/ВЫКЛЮЧИТЬ ГЛУШИТЕЛЬ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FIRING MODE / SCOPE ZOOM","source_en":"FIRING MODE / SCOPE ZOOM","text":"РЕЖИМ ОГНЯ / ПРИБЛИЖЕНИЕ ПРИЦЕЛА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"HEALTH PACK","source_en":"HEALTH PACK","text":"АПТЕЧКА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"NEXT MUSIC TRACK","source_en":"NEXT MUSIC TRACK","text":"СЛЕДУЮЩИЙ МУЗЫКАЛЬНЫЙ ТРЕК","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"OBJECTIVES","source_en":"OBJECTIVES","text":"ЗАДАЧИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PAUSE MENU","source_en":"PAUSE MENU","text":"МЕНЮ ПАУЗЫ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"TOGGLE HUD","source_en":"TOGGLE HUD","text":"ПОКАЗАТЬ/СКРЫТЬ HUD","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SETTINGS PANEL","source_en":"SETTINGS PANEL","text":"ПАНЕЛЬ НАСТРОЕК","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK UP","source_en":"LOOK UP","text":"СМОТРЕТЬ ВВЕРХ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK DOWN","source_en":"LOOK DOWN","text":"СМОТРЕТЬ ВНИЗ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK LEFT","source_en":"LOOK LEFT","text":"СМОТРЕТЬ ВЛЕВО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK RIGHT","source_en":"LOOK RIGHT","text":"СМОТРЕТЬ ВПРАВО","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PRESS","source_en":"PRESS","text":"НАЖМИТЕ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SETTINGS","source_en":"SETTINGS","text":"НАСТРОЙКИ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"BACK","source_en":"BACK","text":"НАЗАД","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DEFAULTS","source_en":"DEFAULTS","text":"ПО УМОЛЧАНИЮ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"APPLY","source_en":"APPLY","text":"ПРИМЕНИТЬ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOUSE","source_en":"MOUSE","text":"МЫШЬ","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"KEYBOARD","source_en":"KEYBOARD","text":"КЛАВИАТУРА","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"Press a key or mouse button to bind, Escape cancels","source_en":"Press a key or mouse button to bind, Escape cancels","text":"Нажмите клавишу или кнопку мыши для назначения; Esc отменяет действие","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"Right click or Delete clears the key","source_en":"Right click or Delete clears the key","text":"Щёлкните правой кнопкой мыши или нажмите Delete, чтобы очистить назначение","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PORTUGUESE","source_en":"PORTUGUESE","text":"ПОРТУГАЛЬСКИЙ","review_status":"ai-draft-pending-human-native-review","source":"planned-language-selector"}
+{"key":"INDONESIAN","source_en":"INDONESIAN","text":"ИНДОНЕЗИЙСКИЙ","review_status":"ai-draft-pending-human-native-review","source":"planned-language-selector"}
+{"key":"RUSSIAN","source_en":"RUSSIAN","text":"РУССКИЙ","review_status":"ai-draft-pending-human-native-review","source":"planned-language-selector"}

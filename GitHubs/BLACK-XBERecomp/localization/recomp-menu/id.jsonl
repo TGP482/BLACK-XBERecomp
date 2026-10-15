@@ -1,0 +1,93 @@
+{"key":"RECOMP SETTINGS","source_en":"RECOMP SETTINGS","text":"PENGATURAN RECOMP","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOUSE AND KEYBOARD","source_en":"MOUSE AND KEYBOARD","text":"MOUSE DAN KEYBOARD","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GENERAL","source_en":"GENERAL","text":"UMUM","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DISPLAY","source_en":"DISPLAY","text":"TAMPILAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GRAPHICS","source_en":"GRAPHICS","text":"GRAFIS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PAGE","source_en":"PAGE","text":"HALAMAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RESTORE DEFAULTS","source_en":"RESTORE DEFAULTS","text":"PULIHKAN PENGATURAN DEFAULT","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PRESS A KEY","source_en":"PRESS A KEY","text":"TEKAN TOMBOL","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"UNBOUND","source_en":"UNBOUND","text":"BELUM DITETAPKAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MONITOR","source_en":"MONITOR","text":"MONITOR","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DISPLAY MODE","source_en":"DISPLAY MODE","text":"MODE TAMPILAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RESOLUTION","source_en":"RESOLUTION","text":"RESOLUSI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RENDER RESOLUTION","source_en":"RENDER RESOLUTION","text":"RESOLUSI RENDER","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FIELD OF VIEW","source_en":"FIELD OF VIEW","text":"BIDANG PANDANG","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"VIEWMODEL FIELD OF VIEW","source_en":"VIEWMODEL FIELD OF VIEW","text":"BIDANG PANDANG SENJATA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"VERTICAL SYNC","source_en":"VERTICAL SYNC","text":"SINKRONISASI VERTIKAL","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FMV SCALE","source_en":"FMV SCALE","text":"SKALA VIDEO","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FILL","source_en":"FILL","text":"ISI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"HDR OUTPUT","source_en":"HDR OUTPUT","text":"OUTPUT HDR","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MAX FRAME RATE","source_en":"MAX FRAME RATE","text":"FRAME RATE MAKSIMUM","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FPS COUNTER","source_en":"FPS COUNTER","text":"PENGHITUNG FPS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ANISOTROPIC FILTERING","source_en":"ANISOTROPIC FILTERING","text":"FILTER ANISOTROPIK","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DRAW DISTANCE","source_en":"DRAW DISTANCE","text":"JARAK PANDANG","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AMBIENT OCCLUSION","source_en":"AMBIENT OCCLUSION","text":"AMBIENT OCCLUSION","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RELOAD BLUR","source_en":"RELOAD BLUR","text":"BURAM SAAT MENGISI ULANG","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SKIP INTROS","source_en":"SKIP INTROS","text":"LEWATI INTRO","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PAUSE ON FOCUS LOSS","source_en":"PAUSE ON FOCUS LOSS","text":"JEDA SAAT KEHILANGAN FOKUS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LANGUAGE","source_en":"LANGUAGE","text":"BAHASA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AUDIO OUTPUT","source_en":"AUDIO OUTPUT","text":"OUTPUT AUDIO","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FULLSCREEN","source_en":"FULLSCREEN","text":"LAYAR PENUH","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"WINDOWED","source_en":"WINDOWED","text":"BERJENDELA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"BORDERLESS","source_en":"BORDERLESS","text":"JENDELA TANPA BINGKAI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ON","source_en":"ON","text":"AKTIF","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"OFF","source_en":"OFF","text":"NONAKTIF","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"UNLIMITED","source_en":"UNLIMITED","text":"TANPA BATAS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"REFRESH RATE","source_en":"REFRESH RATE","text":"KECEPATAN PENYEGARAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AUTOMATIC","source_en":"AUTOMATIC","text":"OTOMATIS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GAME DEFAULT","source_en":"GAME DEFAULT","text":"DEFAULT GAME","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"NOT SUPPORTED","source_en":"NOT SUPPORTED","text":"TIDAK DIDUKUNG","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MONO","source_en":"MONO","text":"MONO","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"2.0 STEREO","source_en":"2.0 STEREO","text":"STEREO 2.0","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"5.1 SURROUND","source_en":"5.1 SURROUND","text":"SURROUND 5.1","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"(DEFAULT)","source_en":"(DEFAULT)","text":"(DEFAULT)","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"(RESTART)","source_en":"(RESTART)","text":"(MULAI ULANG)","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PRIMARY","source_en":"PRIMARY","text":"UTAMA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"(PRIMARY)","source_en":"(PRIMARY)","text":"(UTAMA)","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ENGLISH","source_en":"ENGLISH","text":"INGGRIS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FRENCH","source_en":"FRENCH","text":"PRANCIS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"GERMAN","source_en":"GERMAN","text":"JERMAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"ITALIAN","source_en":"ITALIAN","text":"ITALIA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SPANISH","source_en":"SPANISH","text":"SPANYOL","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOUSE SENSITIVITY","source_en":"MOUSE SENSITIVITY","text":"SENSITIVITAS MOUSE","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"INVERT LOOK","source_en":"INVERT LOOK","text":"BALIK ARAH PANDANG","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"HOLD TO AIM","source_en":"HOLD TO AIM","text":"TAHAN UNTUK MEMBIDIK","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"WALK SPEED","source_en":"WALK SPEED","text":"KECEPATAN BERJALAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOVE FORWARD","source_en":"MOVE FORWARD","text":"BERGERAK MAJU","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOVE BACK","source_en":"MOVE BACK","text":"BERGERAK MUNDUR","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"STRAFE LEFT","source_en":"STRAFE LEFT","text":"BERGESER KE KIRI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"STRAFE RIGHT","source_en":"STRAFE RIGHT","text":"BERGESER KE KANAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"WALK","source_en":"WALK","text":"BERJALAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"CROUCH","source_en":"CROUCH","text":"MERUNDUK","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FIRE","source_en":"FIRE","text":"MENEMBAK","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"AIM","source_en":"AIM","text":"MEMBIDIK","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MELEE","source_en":"MELEE","text":"SERANGAN JARAK DEKAT","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"RELOAD","source_en":"RELOAD","text":"ISI ULANG","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"INTERACT","source_en":"INTERACT","text":"BERINTERAKSI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"THROW GRENADE","source_en":"THROW GRENADE","text":"LEMPAR GRANAT","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"CHANGE WEAPON UP","source_en":"CHANGE WEAPON UP","text":"GANTI KE SENJATA BERIKUTNYA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"CHANGE WEAPON DOWN","source_en":"CHANGE WEAPON DOWN","text":"GANTI KE SENJATA SEBELUMNYA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"TOGGLE SUPPRESSOR","source_en":"TOGGLE SUPPRESSOR","text":"AKTIFKAN/NONAKTIFKAN PEREDAM","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"FIRING MODE / SCOPE ZOOM","source_en":"FIRING MODE / SCOPE ZOOM","text":"MODE TEMBAK / ZOOM BIDIKAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"HEALTH PACK","source_en":"HEALTH PACK","text":"PAKET KESEHATAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"NEXT MUSIC TRACK","source_en":"NEXT MUSIC TRACK","text":"LAGU BERIKUTNYA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"OBJECTIVES","source_en":"OBJECTIVES","text":"OBJEKTIF","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PAUSE MENU","source_en":"PAUSE MENU","text":"MENU JEDA","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"TOGGLE HUD","source_en":"TOGGLE HUD","text":"TAMPILKAN/SEMBUNYIKAN HUD","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SETTINGS PANEL","source_en":"SETTINGS PANEL","text":"PANEL PENGATURAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK UP","source_en":"LOOK UP","text":"LIHAT KE ATAS","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK DOWN","source_en":"LOOK DOWN","text":"LIHAT KE BAWAH","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK LEFT","source_en":"LOOK LEFT","text":"LIHAT KE KIRI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"LOOK RIGHT","source_en":"LOOK RIGHT","text":"LIHAT KE KANAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PRESS","source_en":"PRESS","text":"TEKAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"SETTINGS","source_en":"SETTINGS","text":"PENGATURAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"BACK","source_en":"BACK","text":"KEMBALI","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"DEFAULTS","source_en":"DEFAULTS","text":"DEFAULT","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"APPLY","source_en":"APPLY","text":"TERAPKAN","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"MOUSE","source_en":"MOUSE","text":"MOUSE","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"KEYBOARD","source_en":"KEYBOARD","text":"KEYBOARD","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"Press a key or mouse button to bind, Escape cancels","source_en":"Press a key or mouse button to bind, Escape cancels","text":"Tekan tombol atau tombol mouse untuk menetapkan; Escape membatalkan","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"Right click or Delete clears the key","source_en":"Right click or Delete clears the key","text":"Klik kanan atau tekan Delete untuk menghapus tombol","review_status":"ai-draft-pending-human-native-review","source":"src/common/translations.cpp"}
+{"key":"PORTUGUESE","source_en":"PORTUGUESE","text":"PORTUGIS","review_status":"ai-draft-pending-human-native-review","source":"planned-language-selector"}
+{"key":"INDONESIAN","source_en":"INDONESIAN","text":"BAHASA INDONESIA","review_status":"ai-draft-pending-human-native-review","source":"planned-language-selector"}
+{"key":"RUSSIAN","source_en":"RUSSIAN","text":"RUSIA","review_status":"ai-draft-pending-human-native-review","source":"planned-language-selector"}
