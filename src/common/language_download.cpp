@@ -93,6 +93,12 @@ std::string Sha256(const std::vector<uint8_t>& bytes) {
     return out.str();
 }
 
+std::wstring UniqueFileSuffix(const wchar_t* purpose) {
+    static std::atomic<uint64_t> next_file{0};
+    return L"." + std::wstring(purpose) + L"." + std::to_wstring(GetCurrentProcessId()) + L"." +
+           std::to_wstring(next_file.fetch_add(1, std::memory_order_relaxed));
+}
+
 bool ReadFile(const fs::path& path, std::vector<uint8_t>& bytes, size_t max_size = kMaxFileBytes) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) return false;
@@ -207,10 +213,8 @@ bool WriteAtomic(const fs::path& path, const std::vector<uint8_t>& bytes, std::s
     std::error_code ec;
     fs::create_directories(path.parent_path(), ec);
     if (ec) { error = "The language folder is not writable"; return false; }
-    static std::atomic<uint64_t> next_temp{0};
     auto temp = path;
-    temp += L".download." + std::to_wstring(GetCurrentProcessId()) + L"." +
-            std::to_wstring(next_temp.fetch_add(1, std::memory_order_relaxed)) + L".tmp";
+    temp += UniqueFileSuffix(L"download") + L".tmp";
     {
         std::ofstream file(temp, std::ios::binary | std::ios::trunc);
         if (!file || (!bytes.empty() && !file.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size())))) {
@@ -227,8 +231,16 @@ bool WriteAtomic(const fs::path& path, const std::vector<uint8_t>& bytes, std::s
     return true;
 }
 
-bool InstallAsset(const fs::path& locale_root, const Json& asset, const std::string& revision,
-                  std::string& error, bool* changed = nullptr) {
+struct PendingInstall {
+    fs::path output;
+    fs::path backup;
+    std::vector<uint8_t> bytes;
+    bool backed_up = false;
+    bool installed = false;
+};
+
+bool PrepareAsset(const fs::path& locale_root, const Json& asset, const std::string& revision,
+                  std::string& error, PendingInstall& pending) {
     if (!asset.is_object() || !asset.contains("source_path") || !asset.contains("destination_path") ||
         !asset.contains("sha256") || !asset.contains("size_bytes") || !asset["source_path"].is_string() ||
         !asset["destination_path"].is_string() || !asset["sha256"].is_string() || !asset["size_bytes"].is_number_integer()) {
@@ -278,8 +290,70 @@ bool InstallAsset(const fs::path& locale_root, const Json& asset, const std::str
                 downloaded_hash + "). The manifest and source must come from the same Git commit.";
         return false;
     }
-    if (!WriteAtomic(output, bytes, error)) return false;
-    if (changed) *changed = true;
+    pending.output = output;
+    pending.bytes = std::move(bytes);
+    return true;
+}
+
+bool InstallPreparedAssets(std::vector<PendingInstall>& pending, std::string& error) {
+    for (PendingInstall& file : pending) {
+        std::error_code ec;
+        fs::create_directories(file.output.parent_path(), ec);
+        if (ec) {
+            error = "The language folder is not writable";
+            return false;
+        }
+    }
+
+    auto rollback = [&](size_t through) {
+        bool ok = true;
+        for (size_t i = through + 1; i > 0; --i) {
+            PendingInstall& file = pending[i - 1];
+            std::error_code ec;
+            if (file.installed) {
+                fs::remove(file.output, ec);
+                if (ec) ok = false;
+            }
+            if (file.backed_up &&
+                !MoveFileExW(file.backup.c_str(), file.output.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+                ok = false;
+        }
+        return ok;
+    };
+
+    for (size_t i = 0; i < pending.size(); ++i) {
+        PendingInstall& file = pending[i];
+        std::error_code ec;
+        const bool exists = fs::exists(file.output, ec);
+        if (ec) {
+            error = "Could not inspect an existing language file";
+            if (i && !rollback(i - 1)) error += "; rollback also failed";
+            return false;
+        }
+        if (exists) {
+            file.backup = file.output;
+            file.backup += UniqueFileSuffix(L"rollback") + L".bak";
+            if (!MoveFileExW(file.output.c_str(), file.backup.c_str(), MOVEFILE_WRITE_THROUGH)) {
+                error = "Could not preserve an existing language file before update";
+                if (i && !rollback(i - 1)) error += "; rollback also failed";
+                return false;
+            }
+            file.backed_up = true;
+        }
+        if (!WriteAtomic(file.output, file.bytes, error)) {
+            const bool restored = rollback(i);
+            if (!restored) error += "; rollback also failed";
+            return false;
+        }
+        file.installed = true;
+    }
+
+    for (PendingInstall& file : pending) {
+        if (!file.backed_up) continue;
+        std::error_code ec;
+        fs::remove(file.backup, ec);
+        if (ec) LOGW("language update: could not remove backup file %s", file.backup.string().c_str());
+    }
     return true;
 }
 
@@ -304,17 +378,20 @@ bool InstallLocale(const Json& manifest, const fs::path& language_root, const st
     }
     const fs::path locale_root = language_root / locale;
     size_t installed = 0;
-    bool any_changed = false;
+    std::vector<PendingInstall> pending;
     for (const Json& asset : manifest["locales"][locale]["files"]) {
         if (!asset.is_object() || asset.value("asset_type", std::string{}) == "launcher_catalog") continue;
-        if (!InstallAsset(locale_root, asset, revision, error, &any_changed)) return false;
+        PendingInstall prepared;
+        if (!PrepareAsset(locale_root, asset, revision, error, prepared)) return false;
+        if (!prepared.output.empty()) pending.push_back(std::move(prepared));
         ++installed;
     }
     if (!installed) { error = "The selected locale has no game assets in manifest.json"; return false; }
+    if (!InstallPreparedAssets(pending, error)) return false;
     if (installed_assets) *installed_assets = installed;
-    if (changed) *changed = any_changed;
+    if (changed) *changed = !pending.empty();
     LOGI("language download: %s ready, %zu manifest assets checked%s", locale.c_str(), installed,
-         any_changed ? ", files updated" : "");
+         pending.empty() ? "" : ", files updated");
     return true;
 }
 
