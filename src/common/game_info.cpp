@@ -31,18 +31,25 @@ namespace {
 
 bool g_language_detection_done = false;
 
-std::string SystemUiLocale() {
+std::vector<std::string> SystemUiLocales() {
     ULONG languages = 0, chars = 0;
     if (GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &languages, nullptr, &chars) ||
         GetLastError() != ERROR_INSUFFICIENT_BUFFER || chars < 2) return {};
     std::vector<wchar_t> names(chars);
     if (!GetUserPreferredUILanguages(MUI_LANGUAGE_NAME, &languages, names.data(), &chars)) return {};
-    std::string locale;
-    for (const wchar_t* p = names.data(); *p; ++p) {
-        if (*p > 0x7F) return {};
-        locale += char(*p);
+    std::vector<std::string> result;
+    for (const wchar_t* p = names.data(); *p;) {
+        std::string locale;
+        bool ascii = true;
+        while (*p) {
+            if (*p > 0x7F) ascii = false;
+            else locale += char(*p);
+            ++p;
+        }
+        if (ascii && !locale.empty()) result.push_back(std::move(locale));
+        ++p;  // next null-delimited language (the final item is followed by the second null)
     }
-    return locale;
+    return result;
 }
 
 std::string SupportedLanguage(const std::string& locale) {
@@ -77,8 +84,17 @@ void DetectSystemLanguage(bool first_language_setup) {
     Options& o = Opt();
     o.unsupported_system_locale.clear();
     if (first_language_setup) {
-        const std::string locale = SystemUiLocale();
-        const std::string detected = SupportedLanguage(locale);
+        const std::vector<std::string> locales = SystemUiLocales();
+        std::string locale;
+        std::string detected;
+        for (const std::string& candidate : locales) {
+            detected = SupportedLanguage(candidate);
+            if (!detected.empty()) {
+                locale = candidate;
+                break;
+            }
+        }
+        if (locale.empty() && !locales.empty()) locale = locales.front();
         if (!locale.empty()) LOGR("language detection: Windows UI locale %s maps to %s", locale.c_str(),
                                    detected.empty() ? "English fallback" : detected.c_str());
         if (!detected.empty()) {
@@ -90,8 +106,11 @@ void DetectSystemLanguage(bool first_language_setup) {
             o.unsupported_system_locale = locale;
         }
     } else if (!o.unsupported_language_prompted) {
-        const std::string locale = SystemUiLocale();
-        if (!locale.empty() && SupportedLanguage(locale).empty()) o.unsupported_system_locale = locale;
+        const std::vector<std::string> locales = SystemUiLocales();
+        const auto supported = std::find_if(locales.begin(), locales.end(), [](const std::string& locale) {
+            return !SupportedLanguage(locale).empty();
+        });
+        if (supported == locales.end() && !locales.empty()) o.unsupported_system_locale = locales.front();
         else o.unsupported_language_prompted = true;
     }
     app::SetModalInputCaptured(!o.unsupported_system_locale.empty());

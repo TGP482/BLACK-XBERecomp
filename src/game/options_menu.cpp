@@ -498,7 +498,7 @@ bool UpdateScroll(X86Context& ctx, size_t slot, uint32_t id) {
             p.top--;
         } else {
             p.top = hidden;
-            Focus(ctx, p.name[p.slots - 1]);
+            Focus(ctx, p.name[visible_rows - 1]);
         }
         return true;
     }

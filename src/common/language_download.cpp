@@ -10,6 +10,7 @@
 
 #include <array>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cctype>
 #include <condition_variable>
@@ -185,18 +186,31 @@ bool SafeRelativePath(const std::string& text, fs::path& path) {
     return true;
 }
 
+bool SafeLocaleKey(const std::string& locale) {
+    if (locale.empty() || locale.size() > 32) return false;
+    return std::all_of(locale.begin(), locale.end(), [](unsigned char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+               (c >= '0' && c <= '9') || c == '-';
+    });
+}
+
 bool ValidManifest(const Json& manifest) {
-    return manifest.is_object() && manifest.value("manifest_version", 0) == 1 &&
-           manifest.value("repository", std::string{}) == "soldieg/BLACK-SUBTITLES" &&
-           manifest.contains("locales") && manifest["locales"].is_object();
+    if (!manifest.is_object() || manifest.value("manifest_version", 0) != 1 ||
+        manifest.value("repository", std::string{}) != "soldieg/BLACK-SUBTITLES" ||
+        !manifest.contains("locales") || !manifest["locales"].is_object()) return false;
+    for (auto it = manifest["locales"].begin(); it != manifest["locales"].end(); ++it)
+        if (!SafeLocaleKey(it.key())) return false;
+    return true;
 }
 
 bool WriteAtomic(const fs::path& path, const std::vector<uint8_t>& bytes, std::string& error) {
     std::error_code ec;
     fs::create_directories(path.parent_path(), ec);
     if (ec) { error = "The language folder is not writable"; return false; }
+    static std::atomic<uint64_t> next_temp{0};
     auto temp = path;
-    temp += L".download.tmp";
+    temp += L".download." + std::to_wstring(GetCurrentProcessId()) + L"." +
+            std::to_wstring(next_temp.fetch_add(1, std::memory_order_relaxed)) + L".tmp";
     {
         std::ofstream file(temp, std::ios::binary | std::ios::trunc);
         if (!file || (!bytes.empty() && !file.write(reinterpret_cast<const char*>(bytes.data()), std::streamsize(bytes.size())))) {
@@ -223,7 +237,17 @@ bool InstallAsset(const fs::path& locale_root, const Json& asset, const std::str
     }
     const std::string source = asset["source_path"].get<std::string>();
     const std::string expected = asset["sha256"].get<std::string>();
-    const uint64_t expected_size = asset["size_bytes"].get<uint64_t>();
+    uint64_t expected_size = 0;
+    if (asset["size_bytes"].is_number_unsigned()) {
+        expected_size = asset["size_bytes"].get<uint64_t>();
+    } else {
+        const int64_t signed_size = asset["size_bytes"].get<int64_t>();
+        if (signed_size < 0) {
+            error = "manifest.json contains an invalid file size";
+            return false;
+        }
+        expected_size = static_cast<uint64_t>(signed_size);
+    }
     fs::path source_relative;
     fs::path destination;
     if (!SafeRelativePath(source, source_relative) ||
@@ -269,6 +293,10 @@ bool ParseManifest(const std::vector<uint8_t>& bytes, Json& manifest, std::strin
 bool InstallLocale(const Json& manifest, const fs::path& language_root, const std::string& locale,
                    const std::string& revision, std::string& error,
                    size_t* installed_assets = nullptr, bool* changed = nullptr) {
+    if (!SafeLocaleKey(locale)) {
+        error = "manifest.json contains an unsafe locale name";
+        return false;
+    }
     if (!manifest["locales"].contains(locale) || !manifest["locales"][locale].is_object() ||
         !manifest["locales"][locale].contains("files") || !manifest["locales"][locale]["files"].is_array()) {
         error = "The selected locale has no package in manifest.json";
@@ -396,6 +424,13 @@ void Worker() {
     }
 }
 
+void ClearSupersededQueuedRequest(State& state) {
+    if (state.pending.empty()) return;
+    auto status = state.status.find(state.pending);
+    if (status != state.status.end() && status->second == "QUEUED...") state.status.erase(status);
+    state.pending.clear();
+}
+
 }  // namespace
 
 void app::RequestLanguageDownload(const std::string& language) {
@@ -405,6 +440,7 @@ void app::RequestLanguageDownload(const std::string& language) {
     std::call_once(start, [] { std::thread(Worker).detach(); });
     {
         std::lock_guard guard(state.mutex);
+        if (!state.pending.empty() && state.pending != language) ClearSupersededQueuedRequest(state);
         state.pending = language;
         ++state.generation;
         state.status[language] = "QUEUED...";
@@ -421,7 +457,7 @@ void app::RequestTranslationUpdate() {
     std::call_once(start, [] { std::thread(Worker).detach(); });
     {
         std::lock_guard guard(state.mutex);
-        state.pending.clear();
+        ClearSupersededQueuedRequest(state);
         ++state.generation;
         state.update_pending = true;
         state.update_status = "QUEUED...";

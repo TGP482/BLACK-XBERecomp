@@ -39,6 +39,7 @@ endif()
 # The original extracted game assets and disc image remain unchanged; absent cache files fall back to the game.
 set(SDK_KERNEL_FILES_SOURCE "${SDK}/runtime/kernel/files.cpp")
 file(READ "${SDK_KERNEL_FILES_SOURCE}" SDK_KERNEL_FILES_TEXT)
+set(SDK_KERNEL_FILES_ORIGINAL "${SDK_KERNEL_FILES_TEXT}")
 set(SDK_KERNEL_FILES_INCLUDE_OLD [=[#include "kernel/kernel.h"]=])
 set(SDK_KERNEL_FILES_INCLUDE_NEW [=[#include "kernel/kernel.h"
 #include "app/app.h"
@@ -103,7 +104,9 @@ else()
         message(FATAL_ERROR "Could not add localized font override dispatch to ${SDK_KERNEL_FILES_SOURCE}")
     endif()
 endif()
-file(WRITE "${SDK_KERNEL_FILES_SOURCE}" "${SDK_KERNEL_FILES_TEXT}")
+if(NOT SDK_KERNEL_FILES_TEXT STREQUAL SDK_KERNEL_FILES_ORIGINAL)
+    file(WRITE "${SDK_KERNEL_FILES_SOURCE}" "${SDK_KERNEL_FILES_TEXT}")
+endif()
 # src/sound, src/d3d, src/audio and src/common/game_files.cpp replace the SDK ones
 list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/(xdk/dsound|xdk/d3d8|gpu/d3d12|gpu/render_thread|audio/xaudio2|app/game_files)\\.cpp$")
 

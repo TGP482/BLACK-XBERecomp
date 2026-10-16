@@ -1,6 +1,7 @@
 // Text the recomp adds in French, German, Italian and Spanish: Double Agent recomp's wording where the English is the
 // same, in sentence case with German's nouns capitalized; the panel's rows and the game's menu show it in capitals.
 #include <algorithm>
+#include <chrono>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -198,9 +199,15 @@ std::string GameMenuTranslation(uint32_t id) {
                          language == "deu" ? "de" : language == "ita" ? "it" : language;
     static std::mutex lock;
     static std::map<std::string, std::map<uint32_t, std::string>> caches;
+    static std::map<std::string, std::chrono::steady_clock::time_point> last_attempt;
+    static std::map<std::string, bool> missing_logged;
     std::lock_guard guard(lock);
     auto& strings = caches[locale];
-    if (strings.empty()) {
+    const auto now = std::chrono::steady_clock::now();
+    auto& attempted_at = last_attempt[locale];
+    if (strings.empty() && (attempted_at.time_since_epoch().count() == 0 ||
+                            now - attempted_at >= std::chrono::seconds(1))) {
+        attempted_at = now;
         auto path = app::ExeDir() / "language" / locale / "Localization" / "Menu" / (locale + ".jsonl");
         std::ifstream file(path, std::ios::binary);
         std::string line;
@@ -211,7 +218,12 @@ std::string GameMenuTranslation(uint32_t id) {
             try { parsed = uint32_t(std::stoul(key, nullptr, 16)); } catch (...) { continue; }
             if (!value.empty()) strings[parsed] = std::move(value);
         }
-        LOGI("translations: loaded %zu original game menu strings for %s", strings.size(), locale.c_str());
+        if (file.is_open())
+            LOGI("translations: loaded %zu original game menu strings for %s", strings.size(), locale.c_str());
+        if (strings.empty() && !missing_logged[locale]) {
+            LOGW("translations: original game menu catalog is missing for %s; using game defaults", locale.c_str());
+            missing_logged[locale] = true;
+        }
     }
     auto found = strings.find(id);
     return found == strings.end() ? std::string() : found->second;
