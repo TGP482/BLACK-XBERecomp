@@ -36,7 +36,10 @@ namespace {
 
 constexpr uint32_t kHashTable = 0x2AC908;
 const char* const kCaptions[] = {"RECOMP SETTINGS", "MOUSE AND KEYBOARD"};
-constexpr int kEntries = int(std::size(kCaptions));
+constexpr const char* kLanguageCaption = "LANGUAGE";
+constexpr const char* kSubtitleSettingsCaption = "SUBTITLE SETTINGS";
+constexpr int kSubtitleSettingsMode = 4;
+constexpr int kEntries = 3;
 constexpr int kSlots = 8;
 constexpr int kDepth = 100;
 constexpr int kEscape = 0x1B;
@@ -86,7 +89,7 @@ struct Host {
 };
 constexpr Host kHosts[] = {
     {"OptionsMenuXbox", "TextAnim", "_level4.Main.TextAnim.ControllerSetup_Text", "Playerprofile_Text", 25.0f,
-     "controllerButton", "Playerprofile", 2, 25.0f, -37.0f, 185.0f, 0.9f, nullptr,
+     "controllerButton", "Playerprofile", 3, 25.0f, -37.0f, 185.0f, 0.9f, nullptr,
      {"ControllerSetup_Text", "SoundSetup_Text", "PictureSetup_Text", "Playerprofile_Text"},
      {1.0f, 245.0f, 445.0f, -5.0f}},
     {"PauseMenuOptionXbox", nullptr, "_level4.Main.ToggleCrouch", "ToggleCrouch", 222.0f,
@@ -104,7 +107,7 @@ struct Field {
     uint32_t data;
 };
 enum { kTitle, kEntry, kName = kEntry + kEntries, kValue = kName + kSlots, kFields = kValue + kSlots };
-constexpr uint32_t kFieldSize = 64;
+constexpr uint32_t kFieldSize = 256;
 Field g_fields[kFields];
 
 struct Page {
@@ -113,12 +116,14 @@ struct Page {
     bool failed = false;
     uint32_t first = 0;  // our first clip
     uint32_t lead = 0;   // the stock clip ours keep their places from
+    uint32_t language_lead = 0;  // the first stock option, above which the language entry sits
     uint32_t entry[kEntries] = {};
     uint32_t name[kSlots] = {};
     uint32_t value[kSlots] = {};
     size_t slots = 0;
     size_t top = 0;
     std::vector<const Row*> rows;  // null restores the defaults
+    const Row* pinned_row = nullptr;  // remains at the bottom while the rows above it scroll
     int capture = 0;  // a key binding: 1 the keys come up, 2 the next key binds or Escape leaves, 3 they come up again
     size_t bind = 0;  // its row
 };
@@ -178,16 +183,23 @@ void Hide(uint32_t clip) {
 // ours keep their places from a stock clip, which the page slides and fades in: x, y, then its colours
 void Follow(const Page& p) {
     const Host& h = *p.host;
-    auto follow = [&p](uint32_t clip, float x, float y) {
+    auto follow = [&p](uint32_t clip, uint32_t anchor, float x, float y) {
         if (!clip) return;
-        G<float>(clip + flash::kClipX) = G<float>(p.lead + flash::kClipX) + x;
-        G<float>(clip + flash::kClipY) = G<float>(p.lead + flash::kClipY) + y;
-        std::memcpy(HostPtr(clip + flash::kClipColours), HostPtr(p.lead + flash::kClipColours), flash::kColoursSize);
+        G<float>(clip + flash::kClipX) = G<float>(anchor + flash::kClipX) + x;
+        G<float>(clip + flash::kClipY) = G<float>(anchor + flash::kClipY) + y;
+        std::memcpy(HostPtr(clip + flash::kClipColours), HostPtr(anchor + flash::kClipColours), flash::kColoursSize);
     };
-    for (int i = 0; i < kEntries; i++) follow(p.entry[i], 0.0f, h.drop + h.pitch * float(i));
+    for (int i = 0; i < h.entries; i++) {
+        if (h.entries == 3 && i == 0) {
+            follow(p.entry[i], p.language_lead, 0.0f, -h.pitch);
+        } else {
+            int row = i - (h.entries == 3 ? 1 : 0);
+            follow(p.entry[i], p.lead, 0.0f, h.drop + h.pitch * float(row));
+        }
+    }
     for (int i = 0; i < kSlots; i++) {
-        follow(p.name[i], h.name_x, h.pitch * float(i));
-        follow(p.value[i], h.value_x, h.pitch * float(i));
+        follow(p.name[i], p.lead, h.name_x, h.pitch * float(i));
+        follow(p.value[i], p.lead, h.value_x, h.pitch * float(i));
     }
 }
 
@@ -204,11 +216,16 @@ bool Entries(X86Context& ctx, uint32_t root, uint32_t holder) {
     uint32_t above = Member(ctx, root, h.last);
     p.lead = Member(ctx, holder, h.under);
     if (!top || !above || !flash::IsClip(p.lead)) return false;
+    if (h.entries == 3) {
+        p.language_lead = Member(ctx, holder, "ControllerSetup_Text");
+        if (!flash::IsClip(p.language_lead)) return false;
+    }
     for (int i = 0; i < h.entries; i++) {
         char name[16];
         std::snprintf(name, sizeof(name), "RC_E%d", i);
         if (!(p.entry[i] = Copy(ctx, holder, name, kDepth + i))) return false;
-        if (!Show(ctx, kEntry + i, p.entry[i], nullptr, app::Ui(kCaptions[i]).c_str())) return false;
+        const char* caption = h.entries == 3 ? (i == 0 ? kLanguageCaption : kCaptions[i - 1]) : kCaptions[i];
+        if (!Show(ctx, kEntry + i, p.entry[i], nullptr, app::Ui(caption).c_str())) return false;
     }
     p.first = p.entry[0];
     Follow(p);
@@ -216,10 +233,20 @@ bool Entries(X86Context& ctx, uint32_t root, uint32_t holder) {
     for (int i = 0; i < h.entries; i++) {
         if (!Button(ctx, p.entry[i], top)) return false;
         if (!Set(ctx, p.entry[i], "actionSelectPage", String(ctx, h.page))) return false;
-        Link(ctx, above, p.entry[i]);
-        above = p.entry[i];
     }
-    Link(ctx, above, top);
+    if (h.entries == 3) {
+        // Preserve the original order, inserting LANGUAGE before Control Setup.
+        Link(ctx, above, p.entry[1]);
+        Link(ctx, p.entry[1], p.entry[2]);
+        Link(ctx, p.entry[2], p.entry[0]);
+        Link(ctx, p.entry[0], top);
+    } else {
+        for (int i = 0; i < h.entries; i++) {
+            Link(ctx, above, p.entry[i]);
+            above = p.entry[i];
+        }
+        Link(ctx, above, top);
+    }
     if (!h.hint) return true;
     for (uint32_t clip = FindField(holder, h.hint); clip; clip = R32(clip + flash::kClipParent))
         if (R32(clip + flash::kClipParent) == holder) Hide(clip);
@@ -229,14 +256,51 @@ bool Entries(X86Context& ctx, uint32_t root, uint32_t holder) {
 // the rows of the page's mode, behind the PAGE row where one button opens both
 void Fill(Page& p) {
     p.rows.clear();
+    p.pinned_row = nullptr;
     if (p.host->entries == 1) p.rows.push_back(&kPageRow);
     size_t count = 0;
-    const Row* list = app::rows::Page(p.mode - 1, &count);
-    for (size_t i = 0; i < count; i++)
-        if (list[i].kind != app::rows::Kind::Heading) p.rows.push_back(&list[i]);
-    if (p.mode > 1) p.rows.push_back(nullptr);
-    p.slots = std::min(p.slots, p.rows.size());
+    const bool main_menu = p.host->entries == 3;
+    const bool language_page = main_menu && p.mode == 1;
+    const bool subtitle_settings_page = main_menu && p.mode == kSubtitleSettingsMode;
+    if (subtitle_settings_page) {
+        const Row* settings = app::rows::SubtitleSettings(&count);
+        if (count) {
+            p.pinned_row = &settings[count - 1];
+            count--;
+        }
+        for (size_t i = 0; i < count; i++) p.rows.push_back(&settings[i]);
+    } else if (language_page) {
+        const Row* languages = app::rows::Languages(&count);
+        for (size_t i = 0; i < count; i++) p.rows.push_back(&languages[i]);
+    } else {
+        const int settings_page = main_menu ? p.mode - 2 : p.mode - 1;
+        const Row* list = app::rows::Page(settings_page, &count);
+        for (size_t i = 0; i < count; i++)
+            if (list[i].kind != app::rows::Kind::Heading) p.rows.push_back(&list[i]);
+    }
+    if ((!main_menu && p.mode > 1) || (main_menu && p.mode == 3)) p.rows.push_back(nullptr);
+    p.slots = std::min<size_t>(kSlots, p.rows.size() + (p.pinned_row ? 1u : 0u));
     p.top = 0;
+}
+
+const Row* VisibleRow(const Page& p, size_t slot) {
+    if (p.pinned_row && slot == p.slots - 1) return p.pinned_row;
+    const size_t index = p.top + slot;
+    return index < p.rows.size() ? p.rows[index] : nullptr;
+}
+
+void RefreshRows(X86Context& ctx, Page& p) {
+    for (size_t i = 0; i < kSlots; i++) {
+        if (i < p.slots) {
+            Show(ctx, kName + int(i), p.name[i]);
+            Show(ctx, kValue + int(i), p.value[i]);
+            W32(p.name[i] + flash::kClipFlags, R32(p.name[i] + flash::kClipFlags) | flash::kClipShown);
+            W32(p.value[i] + flash::kClipFlags, R32(p.value[i] + flash::kClipFlags) | flash::kClipShown);
+        } else {
+            Hide(p.name[i]);
+            Hide(p.value[i]);
+        }
+    }
 }
 
 // the panel's rows in place of the stock buttons
@@ -281,15 +345,23 @@ bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
 }
 
 // what row i of the page shows as its value
-std::string ValueText(const Page& p, size_t i) {
-    const Row* row = p.rows[i];
-    if ((p.capture == 1 || p.capture == 2) && p.bind == i) return app::Ui("PRESS A KEY");
+std::string ValueText(const Page& p, const Row* row, size_t index) {
+    if ((p.capture == 1 || p.capture == 2) && p.bind == index) return app::Ui("PRESS A KEY");
     if (row == &kPageRow) return app::Ui(kCaptions[p.mode - 1]);
     if (!row) return " ";
     std::string value = app::rows::Value(*row);
     // key names as they are
     if (row->kind == app::rows::Kind::Bind && value != "UNBOUND") return value;
     return app::Ui(value);
+}
+
+const char* PageCaption(const Page& p) {
+    if (p.host->entries == 3) {
+        if (p.mode == 1) return kLanguageCaption;
+        if (p.mode == kSubtitleSettingsMode) return kSubtitleSettingsCaption;
+        return kCaptions[p.mode - 2];
+    }
+    return kCaptions[p.mode - 1];
 }
 
 uint32_t Glyph(uint32_t font, uint16_t code) {
@@ -343,7 +415,8 @@ float Reach(X86Context& ctx, const Page& p, uint32_t focus) {
     Page shown = p;
     shown.capture = 0;
     float widest = 0.0f;
-    for (size_t i = 0; i < p.rows.size(); i++) widest = std::max(widest, Measure(font, ValueText(shown, i)));
+    for (size_t i = 0; i < p.slots; i++)
+        widest = std::max(widest, Measure(font, ValueText(shown, VisibleRow(p, i), p.top + i)));
     return h.value_x - h.name_x + (kTextLeft + widest * kTextHeight) * scale + kTickGap;
 }
 
@@ -392,9 +465,10 @@ void Build(X86Context& ctx, const Host& host, uint32_t root, uint32_t holder, ui
     p.mode = g_next;
     g_next = 0;
     p.failed = !(p.mode ? Rows(ctx, root, holder, menu) : Entries(ctx, root, holder));
-    const char* shown = p.mode ? kCaptions[p.mode - 1] : "buttons";
+    const char* shown = p.mode ? PageCaption(p) : "buttons";
     LOGI("options menu: %s, %s%s", host.page, shown, p.failed ? ", failed" : "");
     if (!p.failed && !p.mode && g_last) Focus(ctx, p.entry[std::min(g_last, host.entries) - 1]);
+    else if (!p.failed && !p.mode && host.entries == 3) Focus(ctx, p.entry[0]);
     g_last = p.mode;
 }
 
@@ -416,17 +490,19 @@ void UpdateCapture(uint32_t ui, uint32_t id) {
 // past either end the rows scroll, then go round; false off the ends
 bool UpdateScroll(X86Context& ctx, size_t slot, uint32_t id) {
     Page& p = g_page;
-    size_t hidden = p.rows.size() - p.slots;
+    const size_t visible_rows = p.slots - (p.pinned_row ? 1u : 0u);
+    if (!visible_rows || (p.pinned_row && slot == p.slots - 1)) return false;
+    size_t hidden = p.rows.size() - visible_rows;
     if (id == kInputUp && slot == 0) {
         if (p.top) {
             p.top--;
         } else {
             p.top = hidden;
-            Focus(ctx, p.name[p.slots - 1]);
+            Focus(ctx, p.name[visible_rows - 1]);
         }
         return true;
     }
-    if (id == kInputDown && slot == p.slots - 1) {
+    if (id == kInputDown && slot == visible_rows - 1) {
         if (p.top < hidden) {
             p.top++;
         } else {
@@ -439,26 +515,40 @@ bool UpdateScroll(X86Context& ctx, size_t slot, uint32_t id) {
 }
 
 // left, right or confirm on a row: the PAGE row turns the page, a value steps, a binding listens, the last restores
-void ApplyRowInput(size_t slot, uint32_t id, bool locked) {
+void ApplyRowInput(X86Context& ctx, size_t slot, uint32_t id, bool locked) {
     Page& p = g_page;
-    const Row* row = p.rows[p.top + slot];
+    const Row* row = VisibleRow(p, slot);
     bool value = row && row->kind == app::rows::Kind::Value;
     bool changes = id >= kInputLeft && id <= kInputConfirm;
-    if (row == &kPageRow && changes) {
+    if (p.mode == kSubtitleSettingsMode && id == kInputBack) {
+        p.mode = 1;
+        Fill(p);
+        RefreshRows(ctx, p);
+        Focus(ctx, p.name[1]);
+    } else if (row && row->kind == app::rows::Kind::Page && id == kInputConfirm) {
+        p.mode = kSubtitleSettingsMode;
+        Fill(p);
+        RefreshRows(ctx, p);
+        Focus(ctx, p.name[0]);
+    } else if (row == &kPageRow && changes) {
         p.mode = 3 - p.mode;
         Fill(p);
     } else if (value && changes) {
         if (!locked) app::rows::Value(*row, id == kInputLeft ? -1 : 1);
+    } else if (row && row->kind == app::rows::Kind::Action && id == kInputConfirm) {
+        app::rows::Activate(*row);
     } else if (id == kInputConfirm && row) {
-        p.capture = 1;
-        p.bind = p.top + slot;
-    } else if (id == kInputConfirm) {
-        app::rows::Defaults(p.mode - 1);
+        if (row->kind == app::rows::Kind::Bind) {
+            p.capture = 1;
+            p.bind = p.top + slot;
+        }
+    } else if (id == kInputConfirm && !row) {
+        app::rows::Defaults(p.host->entries == 3 ? p.mode - 2 : p.mode - 1);
     }
 }
 
 void UpdateRow(X86Context& ctx, uint32_t ui, size_t slot, uint32_t id, bool clear) {
-    const Row* row = g_page.rows[g_page.top + slot];
+    const Row* row = VisibleRow(g_page, slot);
     if (clear) Clear(ctx, row);
     bool value = row && row->kind == app::rows::Kind::Value;
     bool locked = row && !app::rows::Enabled(*row);  // greyed in the panel
@@ -466,7 +556,7 @@ void UpdateRow(X86Context& ctx, uint32_t ui, size_t slot, uint32_t id, bool clea
     if (edge) {
         W32(ui + kMenuInput, 0);
     } else {
-        ApplyRowInput(slot, id, locked);
+        ApplyRowInput(ctx, slot, id, locked);
     }
     bool stepped = value && !locked && (id == kInputLeft || id == kInputRight);
     if (edge || stepped) Sound(ctx);
@@ -476,11 +566,11 @@ void UpdateRow(X86Context& ctx, uint32_t ui, size_t slot, uint32_t id, bool clea
 void UpdateTexts(const Page& p) {
     // a value lights up with its name: a clip's matrix, then its colours
     constexpr uint32_t kMatrixAndColours = 0x38;
-    Write(g_fields[kTitle], app::Ui(kCaptions[p.mode - 1]));
+    Write(g_fields[kTitle], app::Ui(PageCaption(p)));
     for (size_t i = 0; i < p.slots; i++) {
-        const Row* row = p.rows[p.top + i];
+        const Row* row = VisibleRow(p, i);
         Write(g_fields[kName + i], app::Ui(row ? row->label : "RESTORE DEFAULTS"));
-        Write(g_fields[kValue + i], ValueText(p, p.top + i));
+        Write(g_fields[kValue + i], ValueText(p, row, p.top + i));
         uint32_t from = flash::FirstChild(p.name[i]);
         uint32_t to = flash::FirstChild(p.value[i]);
         if (!from || !to) continue;
@@ -496,10 +586,12 @@ void Tick(X86Context& ctx, uint32_t ui) {
     const Host* host = FindHost(name);
     bool running = host && R32(flash::kPlayerReady) == 1 && R32(flash::kPlayer) && R32(ui + kPageReady) == kPageRunning;
     if (!running) {
+        app::SetSubtitleSettingsPreview(false);
         if (*name && !host) g_next = g_last = 0;
         p = {};
         return;
     }
+    app::SetSubtitleSettingsPreview(p.mode == kSubtitleSettingsMode);
     uint32_t going = R32(ui + kPageLeaving);
     bool leaving = going || R32(ui + kPageAsked) == 1;
     uint32_t root = flash::Level(flash::kMenuLevel);
@@ -516,9 +608,21 @@ void Tick(X86Context& ctx, uint32_t ui) {
         return;
     }
     Follow(p);
-    if (going == 1) p = {};
-    if (leaving) return;
     uint32_t id = InputTaken(ui) ? R32(ui + kMenuInput) : 0;
+    if (p.mode == kSubtitleSettingsMode && id == kInputBack) {
+        W32(ui + kMenuInput, 0);
+        p.mode = 1;
+        Fill(p);
+        RefreshRows(ctx, p);
+        Focus(ctx, p.name[1]);
+        UpdateTexts(p);
+        return;
+    }
+    if (going == 1) {
+        app::SetSubtitleSettingsPreview(false);
+        p = {};
+    }
+    if (leaving) return;
     uint32_t focus = Member(ctx, menu, "mFocusButton");
     if (!p.mode) {
         const uint32_t* at = std::find(std::begin(p.entry), std::end(p.entry), focus);

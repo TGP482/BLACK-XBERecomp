@@ -19,22 +19,67 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shellapi.h>
 
 #include <imgui.h>
 
 #include "app/app.h"
 #include "audio/output.h"
 #include "common/menu.h"
+#include "common/language_download.h"
 #include "common/monitor.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
+#include "common/subtitles.h"
 #include "common/translations.h"
+#include "common/aspect.h"
+#include "kernel/kernel.h"
 
 namespace app {
 
 namespace {
 
 std::atomic<bool> g_open{false};
+std::atomic<bool> g_modal_input_captured{false};
+std::atomic<bool> g_subtitle_settings_preview{false};
+std::string g_language_candidate;
+std::string g_language_previous;
+bool g_confirm_language_restart = false;
+bool g_language_restart_waiting = false;
+bool g_issue_open_failed = false;
+bool g_show_package_details = false;
+bool g_package_repair_requested = false;
+
+void RefreshModalInputCapture() {
+    SetModalInputCaptured(g_confirm_language_restart || g_show_package_details ||
+                          !game::Opt().unsupported_system_locale.empty());
+}
+
+std::string UrlEncode(std::string_view text) {
+    constexpr char hex[] = "0123456789ABCDEF";
+    std::string result;
+    for (unsigned char c : text) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+            c == '-' || c == '_' || c == '.' || c == '~') {
+            result += char(c);
+        } else {
+            result += '%';
+            result += hex[c >> 4];
+            result += hex[c & 15];
+        }
+    }
+    return result;
+}
+
+bool OpenLanguageSuggestion(const std::string& locale) {
+    const std::string title = "Add subtitle and menu localization for " + locale;
+    const std::string body = "Windows preferred UI language: " + locale +
+        "\n\nPlease consider adding menu translations and cutscene subtitles for this language to BLACK-SUBTITLES.";
+    const std::string url = "https://github.com/soldieg/BLACK-SUBTITLES/issues/new?title=" + UrlEncode(title) +
+                            "&body=" + UrlEncode(body);
+    const std::wstring wide(url.begin(), url.end());
+    return reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", wide.c_str(), nullptr, nullptr, SW_SHOWNORMAL)) > 32;
+}
 
 // the cover art's brass on black
 constexpr ImVec4 kPanelBg{0.035f, 0.03f, 0.025f, 0.94f};
@@ -71,7 +116,8 @@ const char* const kFmvScaleNames[] = {"FILL", "4:3"};
 constexpr uint32_t kAudioOutputs[] = {audio::kOutputAuto, audio::kOutputMono, audio::kOutputStereo,
                                       audio::kOutputSurround};
 const char* const kAudioOutputNames[] = {"AUTOMATIC", "MONO", "2.0 STEREO", "5.1 SURROUND"};
-const char* const kLanguageNames[] = {"ENGLISH", "FRENCH", "GERMAN", "ITALIAN", "SPANISH"};  // as game::kLanguages
+const char* const kLanguageNames[] = {"ENGLISH", "FRENCH", "GERMAN", "ITALIAN", "SPANISH", "PORTUGUESE",
+                                      "INDONESIAN", "RUSSIAN"};  // as game::kLanguages
 constexpr uint32_t kFpsCaps[] = {30, 60, 75, 90, 120, 144, 165, 240, 360, kFpsCapRefresh, 0};
 
 int StepIndex(int index, int step, int count) {
@@ -229,6 +275,13 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kSkipIntros, kSensitivity, kInvertMouse, kWalkSpeed, kFov, kViewmodelFov, kHoldAim, kDrawDistance, kMsaa,
              kAmbientOcclusion, kAudioOutput, kHdrOutput, kMonitor, kLanguage, kSmaa,
              kPauseOnFocusLoss, kFmvScale };
+constexpr int kLanguageChoiceBase = 1000;
+constexpr int kSubtitlesEnabled = 900, kSubtitleSettings = 901, kSubtitleSize = 902,
+              kSubtitleBold = 903, kSubtitleColor = 904, kSubtitleShadow = 905, kSubtitlePreview = 906,
+              kSubtitleBackground = 907, kUpdateTranslations = 908;
+constexpr uint32_t kSubtitleSizes[] = {80, 90, 100, 110, 120, 130, 140, 150, 160};
+constexpr const char* kSubtitleColors[] = {"WHITE", "YELLOW"};
+constexpr const char* kSubtitleShadows[] = {"OFF", "SUBTLE", "STRONG"};
 
 using rows::Kind;
 using rows::Row;
@@ -472,9 +525,15 @@ void StepInputRow(int id, int step, char (&text)[64]) {
             if (step) {
                 i = StepIndex(i, step, count);
                 o.language = game::kLanguages[i];
+                app::RequestLanguageDownload(o.language);
             }
-            const char* format = o.language == game::BootLanguage() ? "%s" : "%s (RESTART)";
-            std::snprintf(text, sizeof(text), format, kLanguageNames[i]);
+            const std::string status = app::LanguageDownloadStatus(o.language);
+            if (!status.empty()) {
+                std::snprintf(text, sizeof(text), "%s (%s)", kLanguageNames[i], status.c_str());
+            } else {
+                const char* format = o.language == game::BootLanguage() ? "%s" : "%s (RESTART)";
+                std::snprintf(text, sizeof(text), format, kLanguageNames[i]);
+            }
             break;
         }
     }
@@ -818,8 +877,108 @@ const rows::Row* rows::Page(int page, size_t* count) {
     return rows.data();
 }
 
+const rows::Row* rows::Language() {
+    static const Row row{Kind::Value, kLanguage, "LANGUAGE"};
+    return &row;
+}
+
+const rows::Row* rows::Languages(size_t* count) {
+    static const std::vector<Row> choices = [] {
+        std::vector<Row> out = {{Kind::Value, kSubtitlesEnabled, "SUBTITLES"},
+                                {Kind::Page, kSubtitleSettings, "SUBTITLE SETTINGS"}};
+        for (int i = 0; i < int(std::size(kLanguageNames)); ++i)
+            out.push_back({Kind::Value, kLanguageChoiceBase + i, kLanguageNames[i]});
+        out.push_back({Kind::Action, kUpdateTranslations, "UPDATE TRANSLATIONS"});
+        return out;
+    }();
+    *count = choices.size();
+    return choices.data();
+}
+
+const rows::Row* rows::SubtitleSettings(size_t* count) {
+    static const Row settings[] = {{Kind::Value, kSubtitleSize, "SUBTITLE SIZE"},
+                                   {Kind::Value, kSubtitleBold, "BOLD"},
+                                   {Kind::Value, kSubtitleColor, "COLOR"},
+                                   {Kind::Value, kSubtitleShadow, "SHADOW"},
+                                   {Kind::Value, kSubtitleBackground, "BACKGROUND"},
+                                   {Kind::Heading, kSubtitlePreview, "PREVIEW"}};
+    *count = std::size(settings);
+    return settings;
+}
+
 std::string rows::Value(const Row& row, int step) {
+    game::Options& options = game::Opt();
+    if (row.id == kSubtitlesEnabled) {
+        if (step) {
+            options.subtitles_enabled = !options.subtitles_enabled;
+            app::Save();
+        }
+        return options.subtitles_enabled ? "ON" : "OFF";
+    }
+    if (row.id == kSubtitleSettings) return {};
+    if (row.id == kSubtitlePreview) return {};
+    if (row.id == kUpdateTranslations) {
+        const std::string status = app::TranslationUpdateStatus();
+        return status.empty() ? "CHECK NOW" : status;
+    }
+    if (row.id == kSubtitleSize) {
+        const int i = StepTable(kSubtitleSizes, options.subtitle_size, step);
+        if (step) app::Save();
+        return std::to_string(kSubtitleSizes[i]) + "%";
+    }
+    if (row.id == kSubtitleBold) {
+        if (step) {
+            options.subtitle_bold = !options.subtitle_bold;
+            app::Save();
+        }
+        return options.subtitle_bold ? "ON" : "OFF";
+    }
+    if (row.id == kSubtitleColor) {
+        int value = int(std::min(options.subtitle_color, 1u));
+        if (step) value = StepIndex(value, step, int(std::size(kSubtitleColors)));
+        options.subtitle_color = uint32_t(value);
+        if (step) app::Save();
+        return kSubtitleColors[value];
+    }
+    if (row.id == kSubtitleShadow) {
+        int value = int(std::min(options.subtitle_shadow, 2u));
+        if (step) value = StepIndex(value, step, int(std::size(kSubtitleShadows)));
+        options.subtitle_shadow = uint32_t(value);
+        if (step) app::Save();
+        return kSubtitleShadows[value];
+    }
+    if (row.id == kSubtitleBackground) {
+        if (step) {
+            options.subtitle_background = !options.subtitle_background;
+            app::Save();
+        }
+        return options.subtitle_background ? "ON" : "OFF";
+    }
+    if (row.id >= kLanguageChoiceBase && row.id < kLanguageChoiceBase + int(std::size(kLanguageNames))) {
+        const int i = row.id - kLanguageChoiceBase;
+        static const char* const marks[] = {"int", "fra", "deu", "ita", "esp", "pt-BR", "id", "ru"};
+        if (step == 1) {
+            g_language_candidate = marks[i];
+            if (game::Opt().language != marks[i]) {
+                g_confirm_language_restart = true;
+                    RefreshModalInputCapture();
+            } else {
+                g_package_repair_requested = false;
+                g_show_package_details = true;
+                    RefreshModalInputCapture();
+            }
+        }
+        const bool selected = options.language == marks[i];
+        const std::string package = LanguagePackageStatus(marks[i]);
+        const std::string current = g_language_candidate == marks[i] && !selected ? "PENDING" :
+                                   selected ? "CURRENT" : "";
+        return current.empty() ? package : current + " / " + package;
+    }
     return row.kind == Kind::Bind ? KeyText(input::Binding(size_t(row.id))) : RowText(row.id, step);
+}
+
+void rows::Activate(const Row& row) {
+    if (row.id == kUpdateTranslations && row.kind == Kind::Action) app::RequestTranslationUpdate();
 }
 
 void rows::Defaults(int page) { RestoreDefaults(page); }
@@ -827,6 +986,8 @@ void rows::Defaults(int page) { RestoreDefaults(page); }
 bool rows::Enabled(const Row& row) { return row.kind != Kind::Value || !Greyed(row.id); }
 
 bool MenuOpen() { return g_open.load(std::memory_order_relaxed); }
+bool ModalInputCaptured() { return g_modal_input_captured.load(std::memory_order_relaxed); }
+void SetModalInputCaptured(bool captured) { g_modal_input_captured.store(captured, std::memory_order_relaxed); }
 
 bool Capturing() { return g_capture >= 0; }
 
@@ -838,6 +999,10 @@ void ToggleMenu() {
     if (open) input::ReleaseCursor();
 }
 
+void SetSubtitleSettingsPreview(bool visible) {
+    g_subtitle_settings_preview.store(visible, std::memory_order_relaxed);
+}
+
 void DrawUi(double fps) {
     game::g_fps = float(fps);
     ImGuiIO& io = ImGui::GetIO();
@@ -846,9 +1011,186 @@ void DrawUi(double fps) {
     io.KeyRepeatRate = 0.1f;  // held arrows step ten times a second, ImGui's twenty is too fast for settings
     // scale the font with the output height
     io.FontGlobalScale = std::max(1.0f, io.DisplaySize.y / 720.0f);
+    std::string subtitle = CurrentSubtitle();
+    if (!subtitle.empty() || g_subtitle_settings_preview.load(std::memory_order_relaxed)) {
+        ImVec2 size = io.DisplaySize;
+        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 320.0f || size.y < 240.0f) {
+            const Mode output = app::Output();
+            size = ImVec2(float(output.width), float(output.height));
+        }
+        // Match the video's actual presentation rectangle. The SDK can report a
+        // zero ImGui size briefly during startup/relaunch; never pass that through
+        // as AddText's wrap width (which would stack one character per line).
+        const float aspect = game::Aspect();
+        const float picture_w = std::min(size.x, size.y * aspect);
+        const float picture_h = picture_w / aspect;
+        const float picture_x = (size.x - picture_w) * 0.5f;
+        const float picture_y = (size.y - picture_h) * 0.5f;
+        const ImFont* font = ImGui::GetFont();
+        const float font_size = ImGui::GetFontSize() * 1.20f * float(game::Opt().subtitle_size) / 100.0f;
+        const float wrap = std::max(1.0f, picture_w * 0.88f);
+        const uint32_t color = game::Opt().subtitle_color == 1 ? IM_COL32(255, 224, 96, 255)
+                                                              : IM_COL32(255, 255, 255, 255);
+        const int shadow = int(std::min(game::Opt().subtitle_shadow, 2u));
+        ImDrawList* draw = ImGui::GetForegroundDrawList();
+        auto draw_line = [&](const std::string& text, float vertical_anchor) {
+            if (text.empty()) return;
+            ImVec2 text_size = font->CalcTextSizeA(font_size, wrap, wrap, text.c_str());
+            text_size.x = std::min(text_size.x, wrap);
+            const ImVec2 pos(picture_x + (picture_w - text_size.x) * 0.5f,
+                             picture_y + picture_h * vertical_anchor - text_size.y);
+            constexpr float pad_x = 18.0f, pad_y = 10.0f;
+            if (game::Opt().subtitle_background)
+                draw->AddRectFilled(ImVec2(pos.x - pad_x, pos.y - pad_y),
+                                    ImVec2(pos.x + text_size.x + pad_x, pos.y + text_size.y + pad_y),
+                                    IM_COL32(0, 0, 0, 190), 6.0f);
+            if (shadow) {
+                const float offset = shadow == 1 ? 1.5f : 3.0f;
+                const ImU32 shadow_color = IM_COL32(0, 0, 0, shadow == 1 ? 180 : 235);
+                draw->AddText(font, font_size, ImVec2(pos.x + offset, pos.y + offset), shadow_color,
+                              text.c_str(), nullptr, wrap);
+            }
+            if (game::Opt().subtitle_bold) {
+                const float weight = std::max(0.65f, font_size / 24.0f);
+                draw->AddText(font, font_size, ImVec2(pos.x + weight, pos.y), color, text.c_str(), nullptr, wrap);
+                draw->AddText(font, font_size, ImVec2(pos.x, pos.y + weight), color, text.c_str(), nullptr, wrap);
+            }
+            draw->AddText(font, font_size, pos, color, text.c_str(), nullptr, wrap);
+        };
+        draw_line(subtitle, 0.86f);
+        if (g_subtitle_settings_preview.load(std::memory_order_relaxed))
+            draw_line(Ui("This is a subtitle preview.", false), 0.70f);
+    }
     if (MenuOpen()) {
         PollCapture();
         DrawPanel();
+    }
+    if (g_show_package_details) {
+        ImGui::OpenPopup("Language package files");
+        const std::string title = Ui("LANGUAGE PACKAGE FILES") + "###Language package files";
+        if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            const std::string status = LanguageDownloadStatus(g_language_candidate);
+            const std::string package = LanguagePackageStatus(g_language_candidate);
+            ImGui::Text("%s: %s", Ui("Package status").c_str(), Ui(package).c_str());
+            ImGui::BeginChild("##language-package-file-list", ImVec2(560.0f, 210.0f), true);
+            const std::string details = LanguagePackageDetails(g_language_candidate);
+            ImGui::TextWrapped("%s", Ui(details, false).c_str());
+            ImGui::EndChild();
+            const bool active = status == "QUEUED..." || status == "DOWNLOADING...";
+            if (active) {
+                ImGui::TextUnformatted(Ui("Download in progress.").c_str());
+            } else if (g_package_repair_requested && (status == "FILES READY" || status == "READY - RESTART")) {
+                if (ImGui::Button(Ui("Restart now").c_str())) {
+                    g_show_package_details = false;
+                    g_package_repair_requested = false;
+                    RefreshModalInputCapture();
+                    kernel::Relaunch("BLACK");
+                }
+                ImGui::SameLine();
+            } else if (status == "DOWNLOAD FAILED (SEE LOG)") {
+                if (ImGui::Button(Ui("Retry download").c_str())) {
+                    RequestLanguageDownload(g_language_candidate);
+                    g_package_repair_requested = true;
+                }
+                ImGui::SameLine();
+            } else if (!g_package_repair_requested && package != "READY") {
+                if (ImGui::Button(Ui("Download / repair").c_str())) {
+                    RequestLanguageDownload(g_language_candidate);
+                    g_package_repair_requested = true;
+                }
+                ImGui::SameLine();
+            }
+            if (ImGui::Button(Ui("Close").c_str())) {
+                g_show_package_details = false;
+                g_package_repair_requested = false;
+                g_language_candidate.clear();
+                RefreshModalInputCapture();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
+    if (!game::Opt().unsupported_system_locale.empty()) {
+        ImGui::OpenPopup("Unsupported Windows language");
+        const std::string title = Ui("UNSUPPORTED WINDOWS LANGUAGE") + "###Unsupported Windows language";
+        if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("%s: %s", Ui("Windows display language not available" ).c_str(),
+                        game::Opt().unsupported_system_locale.c_str());
+            ImGui::TextUnformatted(Ui("The game will use English. Review a suggestion on GitHub?").c_str());
+            ImGui::TextUnformatted(Ui("Nothing is submitted automatically; you can review the draft before submitting.").c_str());
+            if (ImGui::Button(Ui("Review on GitHub").c_str())) {
+                if (OpenLanguageSuggestion(game::Opt().unsupported_system_locale)) {
+                    game::Opt().unsupported_language_prompted = true;
+                    game::Opt().unsupported_system_locale.clear();
+                    app::Save();
+                    g_issue_open_failed = false;
+                    RefreshModalInputCapture();
+                } else {
+                    g_issue_open_failed = true;
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(Ui("Not now").c_str())) {
+                game::Opt().unsupported_language_prompted = true;
+                game::Opt().unsupported_system_locale.clear();
+                app::Save();
+                g_issue_open_failed = false;
+                RefreshModalInputCapture();
+            }
+            if (g_issue_open_failed) ImGui::TextUnformatted(Ui("Could not open the browser.").c_str());
+            ImGui::EndPopup();
+        }
+    }
+    if (g_confirm_language_restart) {
+        ImGui::OpenPopup("Restart to apply language?");
+        if (ImGui::BeginPopupModal("Restart to apply language?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            if (!g_language_restart_waiting) {
+                ImGui::TextUnformatted("Restart the game now to apply this language?");
+                const std::string status = LanguagePackageStatus(g_language_candidate);
+                ImGui::Text("%s: %s", Ui("Package status").c_str(), Ui(status).c_str());
+                ImGui::BeginChild("##pending-language-file-list", ImVec2(560.0f, 150.0f), true);
+                const std::string details = LanguagePackageDetails(g_language_candidate);
+                ImGui::TextWrapped("%s", Ui(details, false).c_str());
+                ImGui::EndChild();
+                if (ImGui::Button("Restart now")) {
+                    g_language_previous = game::Opt().language;
+                    game::Opt().language = g_language_candidate;
+                    app::Save();
+                    RequestLanguageDownload(g_language_candidate);
+                    g_language_restart_waiting = true;
+                }
+                ImGui::SetItemDefaultFocus();
+            } else {
+                const std::string status = LanguageDownloadStatus(g_language_candidate);
+                if (status == "READY - RESTART" || status == "FILES READY") {
+                    LOGR("language: %s package ready; restarting", g_language_candidate.c_str());
+                    g_confirm_language_restart = false;
+                    g_language_restart_waiting = false;
+                    RefreshModalInputCapture();
+                    kernel::Relaunch("BLACK");
+                } else if (status == "DOWNLOAD FAILED (SEE LOG)") {
+                    ImGui::TextUnformatted("Language download failed. Check black.log.");
+                } else {
+                    ImGui::Text("Downloading language package... %s", status.c_str());
+                }
+            }
+            if (g_language_restart_waiting && LanguageDownloadStatus(g_language_candidate) == "DOWNLOAD FAILED (SEE LOG)") {
+                if (ImGui::Button("Retry download")) RequestLanguageDownload(g_language_candidate);
+                ImGui::SameLine();
+            }
+            if (ImGui::Button("Later")) {
+                if (g_language_restart_waiting) {
+                    game::Opt().language = g_language_previous;
+                    app::Save();
+                }
+                g_confirm_language_restart = false;
+                g_language_restart_waiting = false;
+                g_language_candidate.clear();
+                RefreshModalInputCapture();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
     }
 }
 
