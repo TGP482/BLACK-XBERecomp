@@ -36,12 +36,19 @@ std::vector<Cue> ReadSrt(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary);
     std::vector<Cue> cues;
     std::string line;
-    while (std::getline(file, line)) {
+    auto read_line = [&]() {
+        if (!std::getline(file, line)) return false;
+        // SRT packages may use CRLF. getline removes '\n' but leaves '\r',
+        // which would make blank cue separators look like subtitle text.
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        return true;
+    };
+    while (read_line()) {
         auto arrow = line.find(" --> ");
         if (arrow == std::string::npos) continue;
         Cue cue{Timestamp(line.substr(0, arrow)), Timestamp(line.substr(arrow + 5)), {}};
         if (cue.start < 0 || cue.end <= cue.start) continue;
-        while (std::getline(file, line) && !line.empty()) {
+        while (read_line() && !line.empty()) {
             if (!cue.text.empty()) cue.text += '\n';
             cue.text += line;
         }
