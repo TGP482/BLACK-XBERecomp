@@ -101,6 +101,20 @@ X86_EXTERN_FUNC(__imp__sub_001F3A80);
 X86_FUNC(sub_001F3A80) {
     uint32_t id = R32(ctx.esp + 4);
     __imp__sub_001F3A80(ctx, base);
+    if (ctx.eax) {
+        std::string translated = app::GameMenuText(id);
+        if (!translated.empty()) {
+            static std::mutex catalog_lock;
+            static std::unordered_map<uint32_t, uint32_t> catalog_text;
+            std::lock_guard catalog_guard(catalog_lock);
+            auto [it, fresh] = catalog_text.try_emplace(id, 0);
+            if (fresh) {
+                it->second = mem::AllocSystem(uint32_t(translated.size() + 1));
+                if (it->second) std::memcpy(HostPtr(it->second), translated.c_str(), translated.size() + 1);
+            }
+            if (it->second) ctx.eax = it->second;
+        }
+    }
     if (uint32_t text = game::OptionsText(id)) {
         ctx.eax = text;
         return;

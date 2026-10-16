@@ -232,7 +232,7 @@ std::string Join(const std::vector<int>& vks, bool labels = false) {
 }
 
 bool Foreground() { return g_hwnd && GetForegroundWindow() == g_hwnd; }
-bool Active() { return Foreground() && !app::MenuOpen(); }
+bool Active() { return Foreground() && !app::MenuOpen() && !app::ModalInputCaptured(); }
 bool Wheel(int vk) { return vk == kWheelUp || vk == kWheelDown; }
 bool Down(int vk) {
     if (Wheel(vk)) return NowMs() - g_wheel_ms[vk == kWheelDown] < kTapMs;
@@ -343,7 +343,7 @@ void OnRawInput(void* handle) {
     int notch = 0;
     if (m.usButtonFlags & RI_MOUSE_WHEEL) notch = SHORT(m.usButtonData) > 0 ? 1 : -1;
     // noted while the settings panel has the input too, so its key capture sees the wheel
-    if (notch && Foreground()) g_wheel_ms[notch < 0] = NowMs();
+    if (notch && Foreground() && !app::ModalInputCaptured()) g_wheel_ms[notch < 0] = NowMs();
     if (!Active()) return;
     SetKeyboard(true);
     // the cursor is free in the game's menus, where the wheel scrolls unless a key capture takes it
@@ -442,7 +442,10 @@ bool Cursor(float& x, float& y, bool& down) {
     return true;
 }
 
-int TakeWheel() { return g_wheel.exchange(0); }
+int TakeWheel() {
+    const int wheel = g_wheel.exchange(0);
+    return app::ModalInputCaptured() ? 0 : wheel;
+}
 
 bool LeftButton() { return Active() && !g_settle && Down(VK_LBUTTON); }
 

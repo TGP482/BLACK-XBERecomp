@@ -7,8 +7,8 @@
 // the game's own settings, in the settings file through app::kGame.options
 namespace game {
 
-// the languages, saved by these codes: English, French, German, Italian, Spanish
-inline constexpr const char* kLanguages[] = {"int", "fra", "deu", "ita", "esp"};
+// the languages, saved by these codes: English, French, German, Italian, Spanish, Portuguese, Indonesian, Russian
+inline constexpr const char* kLanguages[] = {"int", "fra", "deu", "ita", "esp", "pt-BR", "id", "ru"};
 
 struct Options {
     std::string monitor;  // its device name, \\.\DISPLAY2; empty the primary
@@ -28,6 +28,14 @@ struct Options {
     uint32_t walk_speed = 50;  // percent of running, while the walk key is held
     uint32_t audio_output = 0;  // audio::kOutputAuto, kOutputStereo, kOutputSurround or kOutputMono
     std::string language = "int";  // one of kLanguages
+    bool subtitles_enabled = true;
+    uint32_t subtitle_size = 120;  // percent, 80 to 160
+    bool subtitle_bold = true;
+    uint32_t subtitle_color = 0;  // 0 white, 1 yellow
+    uint32_t subtitle_shadow = 1;  // 0 off, 1 subtle, 2 strong
+    bool subtitle_background = true;
+    bool unsupported_language_prompted = true;
+    std::string unsupported_system_locale;  // transient: populated only when the first-run Windows UI language is unsupported
     bool smaa = false;  // over the finished frame, HUD included; combines with msaa
     bool pause_on_focus_loss = true;  // the game and its sound stop while the window is in the background
     std::map<std::string, std::string> keys;  // action id to key names, absent is the default
