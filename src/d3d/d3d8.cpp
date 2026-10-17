@@ -281,10 +281,11 @@ gpu::State& State() { return g_state; }
 std::recursive_mutex& Lock() { return g_lock; }
 
 // draws grow about the viewport's centre, depth stays
-void ViewScale(float xy) {
+void ViewScale(float xy, bool depth_clamp) {
     std::lock_guard<std::recursive_mutex> lock(g_lock);
     g_view_scale = xy;
     UpdateViewportConstants();
+    if (g_backend) g_backend->Clear(g_state, 0, nullptr, gpu::kClearViewmodelDepthClamp, depth_clamp, 0, 0);
 }
 
 // sent as p: 1 / the projection's x and y scale, its x and y centre, then view z = p[4] / (ndc depth - p[5]),
