@@ -345,9 +345,9 @@ Mode StepResolution(Settings& s, int step) {
     return m;
 }
 
-// both field of view rows: 45 to 140 in steps of 1, 70 the game's own
+// both field of view rows: 45 to 100 in steps of 1, 70 the game's own
 constexpr int kFovMin = 45;
-constexpr int kFovMax = 140;
+constexpr int kFovMax = 100;
 constexpr uint32_t kGameFov = 70;
 
 void FovText(uint32_t fov, char (&text)[64]) {

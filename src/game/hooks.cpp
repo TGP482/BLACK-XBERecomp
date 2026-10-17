@@ -17,7 +17,7 @@ using namespace kernel;
 using namespace layout;
 
 namespace d3d {
-void ViewScale(float xy);
+void ViewScale(float xy, bool close_near = false);
 }
 
 namespace {
@@ -175,7 +175,7 @@ constexpr float kHalf = 3.14159265f / 360.0f;
 
 // tangent of a setting's half angle over that of the game's 70 degrees
 static float Widen(uint32_t degrees) {
-    return std::tan(std::clamp(degrees, 45u, 140u) * kHalf) / std::tan(70 * kHalf);
+    return std::tan(std::clamp(degrees, 45u, 100u) * kHalf) / std::tan(70 * kHalf);
 }
 
 static float g_gun = 1.0f;  // the gun's picture over the view's
@@ -196,8 +196,8 @@ void FieldOfView(X86Context& ctx, uint8_t*) {
 // The list of the first person models, gun, arms and muzzle mesh: drawn at the viewmodel setting
 X86_EXTERN_FUNC(__imp__sub_00176F60);
 X86_FUNC(sub_00176F60) {
-    bool gun = g_gun != 1 && ctx.esi == R32(kDisplay) + kDisplayDrawLists + kGunDrawList * kDrawListSize;
-    if (gun) d3d::ViewScale(g_gun);
+    bool gun = ctx.esi == R32(kDisplay) + kDisplayDrawLists + kGunDrawList * kDrawListSize;
+    if (gun) d3d::ViewScale(g_gun, game::Opt().viewmodel_fov > 70);
     __imp__sub_00176F60(ctx, base);
     if (gun) d3d::ViewScale(1);
 }

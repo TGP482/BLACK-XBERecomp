@@ -244,6 +244,7 @@ float ZScale(const gpu::Surface& zs) {
 }
 
 float g_view_scale = 1.0f;
+bool g_view_near = false;
 
 // c-38 and c-37 hold the viewport scale and offset, as D3D_GetViewportOffsetAndScale computes them
 constexpr uint32_t kViewportScale = 58;
@@ -258,6 +259,14 @@ void UpdateViewportConstants() {
     float x = v.x + g_state.ss_offset_x + hw;
     float y = v.y + g_state.ss_offset_y + hh;
     g_state.vsc[kViewportOffset] = {x, y, v.min_z * g_state.zscale, 0};
+    if (g_view_near) {
+        // Keep weapons in front of the scene, with a closer near plane and distinct depths.
+        constexpr float kNearScale = 0.008f;
+        constexpr float kDepthRange = 0.1f;
+        float depth = g_state.vsc[kViewportScale][2] * kDepthRange;
+        g_state.vsc[kViewportOffset][2] = g_state.vsc[kViewportOffset][2] * kDepthRange + depth * (1 - kNearScale);
+        g_state.vsc[kViewportScale][2] = depth * kNearScale;
+    }
 }
 
 void SetComplex(uint32_t rs, uint32_t v) {
@@ -280,10 +289,11 @@ void ApplyDefaultStates(X86Context& ctx) {
 gpu::State& State() { return g_state; }
 std::recursive_mutex& Lock() { return g_lock; }
 
-// draws grow about the viewport's centre, depth stays
-void ViewScale(float xy) {
+// draws grow about the viewport's centre; weapons can use a closer near plane
+void ViewScale(float xy, bool close_near) {
     std::lock_guard<std::recursive_mutex> lock(g_lock);
     g_view_scale = xy;
+    g_view_near = close_near;
     UpdateViewportConstants();
 }
 

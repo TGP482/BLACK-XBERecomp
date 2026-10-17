@@ -103,6 +103,8 @@ void Rumble(int port, uint16_t& left, uint16_t& right) {
 void Load(const void* table) {
     const toml::table& t = *static_cast<const toml::table*>(table);
     Options& o = Opt();
+    o.fov = std::clamp(o.fov, 45u, 100u);
+    o.viewmodel_fov = std::clamp(o.viewmodel_fov, 45u, 100u);
     o.monitor = t["monitor"].value_or(o.monitor);
     o.mouse_sensitivity = float(t["mouse_sensitivity"].value_or(double(o.mouse_sensitivity)));
     std::string language = t["language"].value_or(o.language);
