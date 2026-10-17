@@ -34,7 +34,6 @@
 #include "common/options.h"
 #include "core/diag.h"
 #include "core/log.h"
-#include "d3d/gpu_frame.h"
 #include "d3d/occlusion.h"
 #include "d3d/smaa_shader.h"
 #include "d3d/smaa_textures.h"
@@ -723,7 +722,6 @@ struct PsoKey {
     uint32_t zen;
     uint32_t zwrite;
     uint32_t zfunc;
-    uint32_t depth_clip;
     uint32_t sten;
     uint32_t sfunc;
     uint32_t smask;
@@ -1123,7 +1121,6 @@ private:
     float scale_ = 1.0f;
     uint32_t msaa_ = 1;      // samples in use
     uint32_t msaa_set_ = 0;  // the setting they came from
-    bool viewmodel_depth_clamp_ = false;
     // ambient occlusion: the raw pass and its first blur, each with view z beside it
     ComPtr<ID3D12Resource> ao_[kAoTargets];
     D3D12_RESOURCE_STATES ao_state_[kAoTargets] = {};
@@ -2121,7 +2118,7 @@ void D3D12Backend::FillPipelineDesc(const PsoKey& k, ID3DBlob* vs, ID3DBlob* ps,
     d.RasterizerState.FrontCounterClockwise = k.ccw;
     d.RasterizerState.DepthBias = k.zbias;
     d.RasterizerState.SlopeScaledDepthBias = k.zslope;
-    d.RasterizerState.DepthClipEnable = k.depth_clip;
+    d.RasterizerState.DepthClipEnable = TRUE;
     d.RasterizerState.MultisampleEnable = k.msaa != 0;
     FillDepthStencilDesc(k, d.DepthStencilState);
     d.PrimitiveTopologyType = TopologyType(k.topo);
@@ -2574,7 +2571,6 @@ void D3D12Backend::BuildPipelineKey(const State& s, const Assembled& a, uint64_t
         }
     }
     k.topo = uint32_t(a.topology);
-    k.depth_clip = !viewmodel_depth_clamp_;
     k.has_rt = bound_rt_ != nullptr;
     k.has_ds = bound_ds_ != nullptr;
     k.rtfmt = bound_rt_ ? bound_rt_->fmt : 0;
@@ -3058,10 +3054,6 @@ void D3D12Backend::ClearTarget(Target& t, const State& s, const ClearArgs& c, st
 
 void D3D12Backend::Clear(const State& s, uint32_t count, const uint8_t* rects, uint32_t flags, uint32_t color, float z,
                          uint32_t stencil) {
-    if (flags & kClearViewmodelDepthClamp) {
-        viewmodel_depth_clamp_ = color != 0;
-        return;
-    }
     if (flags & kClearOcclusion) {
         if (count != kOcclusionRects || !rects) return;
         float p[4 * kOcclusionRects];
