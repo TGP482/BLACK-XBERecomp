@@ -29,6 +29,7 @@
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
 #include "common/translations.h"
+#include "game/weapons.h"
 
 namespace app {
 
@@ -502,9 +503,10 @@ std::string KeyText(std::string keys) {
     return keys;
 }
 
-const char* const kPages[] = {"RECOMP SETTINGS", "MOUSE AND KEYBOARD"};
+const char* const kPages[] = {"RECOMP SETTINGS", "MOUSE AND KEYBOARD", "WEAPONS"};
 constexpr int kSettingsPage = 0;
 constexpr int kKeyboardPage = 1;
+constexpr int kWeaponsPage = 2;  // weapons.cpp: any weapon in any level
 
 void RestoreDefaults(int page) {
     game::Options& o = game::Opt();
@@ -664,7 +666,41 @@ void DrawRows(int page) {
     }
 }
 
+// the level's weapons as buttons, the one given goes in the slot not in hand and the game switches to it
+void DrawWeapons() {
+    weapons::View v = weapons::Current();
+    Section("GIVE A WEAPON");
+    if (!v.in_level) {
+        ImGui::PushStyleColor(ImGuiCol_Text, kDim);
+        ImGui::TextWrapped("%s", Ui("Start or continue a level to choose its weapons.", false).c_str());
+        ImGui::PopStyleColor();
+        return;
+    }
+    constexpr int kColumns = 3;
+    float gap = ImGui::GetStyle().ItemSpacing.x;
+    float w = (ImGui::GetContentRegionAvail().x - gap * (kColumns - 1)) / kColumns;
+    for (size_t i = 0; i < v.choices.size(); i++) {
+        const weapons::Choice& c = v.choices[i];
+        if (i % kColumns) ImGui::SameLine();
+        ImGui::PushID(c.type);
+        if (c.held) ImGui::PushStyleColor(ImGuiCol_Text, kHeading);  // in one of the two slots now
+        if (ImGui::Button(c.label.c_str(), ImVec2(w, 0))) weapons::Give(c.type);
+        if (c.held) ImGui::PopStyleColor();
+        ImGui::PopID();
+    }
+    Section("AMMUNITION");
+    if (ImGui::Button(Ui("FILL AMMUNITION").c_str(), ImVec2(w, 0))) weapons::FillAmmo();
+    if (!v.status.empty()) {
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, kDim);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(v.status.c_str());
+        ImGui::PopStyleColor();
+    }
+}
+
 void Defaults() {
+    if (g_page == kWeaponsPage) return;
     g_capture = -1;
     if (g_page == kSettingsPage) g_display_held = false;
     RestoreDefaults(g_page);
@@ -716,6 +752,7 @@ void DrawFooter(float em) {
     const char* hint = "";
     if (g_capture >= 0) hint = "Press a key or mouse button to bind, Escape cancels";
     else if (g_page == kKeyboardPage && g_hovered_box >= 0) hint = "Right click or Delete clears the key";
+    else if (g_page == kWeaponsPage) hint = "The weapon replaces the one not in hand, gold names are held";
     ImGui::TextUnformatted(Ui(hint, false).c_str());
     ImGui::PopStyleColor();
     float bw = em * 8;
@@ -723,7 +760,9 @@ void DrawFooter(float em) {
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(buttons_pad, 0.0f));
     if (ImGui::Button(Ui("Back", false).c_str(), ImVec2(bw, 0))) ToggleMenu();
     ImGui::SameLine();
+    ImGui::BeginDisabled(g_page == kWeaponsPage);
     if (ImGui::Button(Ui("Defaults", false).c_str(), ImVec2(bw, 0))) Defaults();
+    ImGui::EndDisabled();
     ImGui::SameLine();
     ImGui::BeginDisabled(!g_display_held);
     if (ImGui::Button(Ui("Apply", false).c_str(), ImVec2(bw, 0))) Apply();
@@ -748,7 +787,8 @@ void DrawPanel() {
         float footer = ImGui::GetTextLineHeightWithSpacing() + ImGui::GetFrameHeightWithSpacing() + em;
         ImGui::BeginChild("##rows", ImVec2(0, -footer), ImGuiChildFlags_NavFlattened);
         g_hovered_box = -1;
-        DrawRows(g_page);
+        if (g_page == kWeaponsPage) DrawWeapons();
+        else DrawRows(g_page);
         ImGui::EndChild();
         DrawFooter(em);
     }
