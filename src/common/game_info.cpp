@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iterator>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -8,6 +9,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#endif
 
 #include <toml++/toml.hpp>
 
@@ -22,6 +24,7 @@ namespace game {
 
 namespace {
 
+#ifdef _WIN32
 constexpr uint32_t kHostApplyDisplay = WM_APP + 1;  // main.cpp's kApplyDisplay
 constexpr intptr_t kKeyWasDown = 1 << 30;  // WM_KEYDOWN lParam: a held key's repeat
 
@@ -83,6 +86,9 @@ bool Message(void* hwnd, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* resu
     }
     return false;
 }
+#else
+bool Message(void*, uint32_t, uintptr_t, intptr_t, intptr_t*) { return false; }
+#endif
 
 // port 0 has the keyboard; the game sees no input while the panel is open
 void Pad(int port, input::Pad& pad) {

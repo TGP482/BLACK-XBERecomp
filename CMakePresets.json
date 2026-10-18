@@ -13,7 +13,7 @@
                 "CMAKE_C_FLAGS": "-march=x86-64-v2",
                 "CMAKE_CXX_FLAGS": "-march=x86-64-v2"
             },
-            "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"}
+            "condition": {"type": "inList", "string": "${hostSystemName}", "list": ["Windows", "Linux"]}
         },
         {"name": "debug", "displayName": "Debug", "inherits": "base",
          "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug", "CMAKE_C_FLAGS_DEBUG": "-O3", "CMAKE_CXX_FLAGS_DEBUG": "-O3",

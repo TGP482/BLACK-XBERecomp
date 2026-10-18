@@ -5,6 +5,7 @@
 #include <iterator>
 #include <mutex>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -12,12 +13,16 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
+#endif
 
 #include "common/aspect.h"
 #include "common/options.h"
 
 namespace game {
 
+#ifdef _WIN32
 namespace {
 
 // the setting, copied under the panel's lock
@@ -117,5 +122,67 @@ void UpdateSplashMonitor() {
     int y = m.top + (m.bottom - m.top - (r.bottom - r.top)) / 2;
     SetWindowPos(splash, nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
+
+#else
+
+namespace {
+
+std::string Monitor() {
+    std::lock_guard lock(app::UiLock());
+    return Opt().monitor;
+}
+
+}  // namespace
+
+std::vector<Display> Displays() {
+    std::vector<Display> out;
+    int count = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    if (!displays) return out;
+    SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+    for (int i = 0; i < count; i++) {
+        SDL_DisplayID id = displays[i];
+        const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(id);
+        const char* name = SDL_GetDisplayName(id);
+        Display d{
+            name ? std::string(name) : ("Display " + std::to_string(i + 1)),
+            i + 1,
+            {uint32_t(mode ? mode->w : 1920), uint32_t(mode ? mode->h : 1080)},
+            (id == primary)
+        };
+        out.push_back(d);
+    }
+    SDL_free(displays);
+    return out;
+}
+
+void UpdateWindowMonitor(void* window) {
+    SDL_Window* win = static_cast<SDL_Window*>(window);
+    if (!win) return;
+    int count = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    if (!displays) return;
+    std::string target_name = Monitor();
+    SDL_DisplayID target_id = 0;
+    for (int i = 0; i < count; i++) {
+        const char* name = SDL_GetDisplayName(displays[i]);
+        if (name && target_name == name) {
+            target_id = displays[i];
+            break;
+        }
+    }
+    if (!target_id) target_id = SDL_GetPrimaryDisplay();
+    SDL_Rect rect{};
+    if (SDL_GetDisplayBounds(target_id, &rect)) {
+        SDL_SetWindowPosition(win, rect.x, rect.y);
+        g_monitor_moves++;
+    }
+    SDL_free(displays);
+}
+
+void UpdateSplashMonitor() {
+}
+
+#endif
 
 }  // namespace game

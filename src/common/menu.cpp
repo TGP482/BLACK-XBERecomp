@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -19,6 +20,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
+#endif
 
 #include <imgui.h>
 
@@ -113,6 +117,7 @@ int StepRange(int value, int lo, int hi, int inc, int step) {
 // the monitor's modes smallest first, so Left steps down; the primary's for empty
 std::vector<Mode> Modes(const std::string& monitor) {
     std::vector<Mode> modes;
+#ifdef _WIN32
     std::wstring device(monitor.begin(), monitor.end());
     const wchar_t* name = device.empty() ? nullptr : device.c_str();
     DEVMODEW dm{};
@@ -123,6 +128,33 @@ std::vector<Mode> Modes(const std::string& monitor) {
         auto same = [&](const Mode& o) { return o.width == m.width && o.height == m.height; };
         if (std::none_of(modes.begin(), modes.end(), same)) modes.push_back(m);
     }
+#else
+    int count = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    SDL_DisplayID target = 0;
+    if (displays) {
+        for (int i = 0; i < count; i++) {
+            const char* name = SDL_GetDisplayName(displays[i]);
+            if (name && monitor == name) {
+                target = displays[i];
+                break;
+            }
+        }
+        if (!target) target = SDL_GetPrimaryDisplay();
+        int mode_count = 0;
+        const SDL_DisplayMode* const* dmodes = SDL_GetFullscreenDisplayModes(target, &mode_count);
+        if (dmodes) {
+            for (int i = 0; i < mode_count; i++) {
+                if (dmodes[i]->w < 640) continue;
+                Mode m{uint32_t(dmodes[i]->w), uint32_t(dmodes[i]->h)};
+                auto same = [&](const Mode& o) { return o.width == m.width && o.height == m.height; };
+                if (std::none_of(modes.begin(), modes.end(), same)) modes.push_back(m);
+            }
+        }
+        SDL_free(displays);
+    }
+    if (modes.empty()) modes.push_back({1920, 1080});
+#endif
     std::sort(modes.begin(), modes.end(), [](const Mode& a, const Mode& b) {
         return a.width != b.width ? a.width < b.width : a.height < b.height;
     });
@@ -761,6 +793,7 @@ void DrawPanel() {
 // when unreadable
 uint32_t RefreshRate() {
     static uint32_t rate = 0;
+#ifdef _WIN32
     static ULONGLONG next = 0;
     ULONGLONG now = GetTickCount64();
     if (now < next) return rate;
@@ -772,6 +805,11 @@ uint32_t RefreshRate() {
     HMONITOR monitor = MonitorFromWindow(static_cast<HWND>(Window()), MONITOR_DEFAULTTOPRIMARY);
     bool read = GetMonitorInfoW(monitor, &mi) && EnumDisplaySettingsW(mi.szDevice, ENUM_CURRENT_SETTINGS, &mode);
     rate = read && mode.dmDisplayFrequency > 1 ? mode.dmDisplayFrequency : 0;
+#else
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+    if (mode && mode->refresh_rate > 1.0f) rate = uint32_t(mode->refresh_rate);
+    else rate = 60;
+#endif
     return rate;
 }
 
@@ -786,8 +824,11 @@ void PaceAt(uint32_t cap) {
     }
     auto period = std::chrono::nanoseconds(1000000000ull / cap);
     next += period;
-    if (next < now - period) next = now;
+#ifdef _WIN32
     while (clock::now() + std::chrono::milliseconds(2) < next) Sleep(1);
+#else
+    while (clock::now() + std::chrono::milliseconds(2) < next) SDL_Delay(1);
+#endif
     while (clock::now() < next) std::this_thread::yield();
 }
 

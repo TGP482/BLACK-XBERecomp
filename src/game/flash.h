@@ -2,6 +2,12 @@
 // The game's Flash player: the script's values and the clips on screen
 #include <string.h>
 
+#ifndef _WIN32
+#include <strings.h>
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
+#endif
+
 #include <cstdint>
 #include <cstring>
 #include <map>

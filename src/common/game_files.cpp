@@ -2,6 +2,7 @@
 // this executable was recompiled from; another release's would run its own data under this code. The Europe xbe is
 // turned into the US one by europe.patch (tools/europe_patch.py); the rest of the Europe disc is the US files plus
 // its languages.
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -9,6 +10,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
+#endif
 
 #include <algorithm>
 #include <cwctype>
@@ -136,13 +140,24 @@ struct EuropePatch {
     }
 };
 
-// europe.patch from the executable's resources
+#ifndef _WIN32
+extern "C" const uint8_t kEuropePatchStart[];
+extern "C" const uint8_t kEuropePatchEnd[];
+#endif
+
+// europe.patch from the executable's resources or embedded binary
 bool LoadEuropePatch(const uint8_t*& data, size_t& size) {
+#ifdef _WIN32
     HRSRC res = FindResourceW(nullptr, L"EUROPE", RT_RCDATA);
     if (!res) return false;
     data = static_cast<const uint8_t*>(LockResource(LoadResource(nullptr, res)));
     size = SizeofResource(nullptr, res);
     return data && size;
+#else
+    data = kEuropePatchStart;
+    size = size_t(kEuropePatchEnd - kEuropePatchStart);
+    return data && size;
+#endif
 }
 
 // the US xbe in place of the Europe one; false leaves it as it was
@@ -167,7 +182,7 @@ bool FindGame(GameFiles& game) {
         for (auto& e : fs::directory_iterator(assets, ec)) {
             std::wstring ext = e.path().extension().wstring();
             std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return wchar_t(std::towlower(c)); });
-            if (ext == L".iso" && e.is_regular_file(ec)) isos.push_back(e.path());
+            if (ext == L".iso" && (e.is_regular_file(ec) || e.is_symlink(ec))) isos.push_back(e.path());
         }
     std::sort(isos.begin(), isos.end());
 
@@ -198,7 +213,7 @@ bool FindGame(GameFiles& game) {
     };
 
     std::vector<uint8_t> xbe;
-    bool extracted = !assets.empty() && ReadHostFile(assets / IMAGE_XBE, xbe);
+    bool extracted = !assets.empty() && ReadHostFile(assets / IMAGE_XBE, xbe) && fs::exists(assets / "GlobData.bin", ec);
     if (extracted && consider(assets, std::move(xbe), nullptr)) return true;
     for (const fs::path& iso : isos) {
         auto disc = std::make_unique<kernel::Disc>();
@@ -215,14 +230,51 @@ bool FindGame(GameFiles& game) {
     }
 
     if (other_name.empty()) {
+#ifdef _WIN32
         MessageBoxW(nullptr, kGame.missing, kGame.short_title, MB_ICONERROR);
+#else
+        std::string missing_str;
+        if (kGame.missing) {
+            for (const wchar_t* p = kGame.missing; *p; p++) missing_str += char(*p);
+        }
+        std::string title_str;
+        if (kGame.short_title) {
+            for (const wchar_t* p = kGame.short_title; *p; p++) title_str += char(*p);
+        }
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title_str.c_str(), missing_str.c_str(), nullptr);
+#endif
         return false;
     }
+#ifdef _WIN32
     std::wstring text = other_name.filename().wstring() +
                         L" is a different release of the game than this build was made from, and will most likely "
                         L"crash.\n\nStart it anyway?";
     int answer = MessageBoxW(nullptr, text.c_str(), kGame.short_title, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
     if (answer != IDYES) return false;
+#else
+    std::string text = other_name.filename().string() +
+                       " is a different release of the game than this build was made from, and will most likely crash.\n\nStart it anyway?";
+    std::string title_str;
+    if (kGame.short_title) {
+        for (const wchar_t* p = kGame.short_title; *p; p++) title_str += char(*p);
+    }
+    const SDL_MessageBoxButtonData buttons[] = {
+        { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 0, "No" },
+        { 0, 1, "Yes" },
+    };
+    SDL_MessageBoxData mbdata = {
+        SDL_MESSAGEBOX_WARNING,
+        nullptr,
+        title_str.c_str(),
+        text.c_str(),
+        2,
+        buttons,
+        nullptr
+    };
+    int buttonid = 0;
+    SDL_ShowMessageBox(&mbdata, &buttonid);
+    if (buttonid != 1) return false;
+#endif
     game = std::move(other);
     kernel::MountDisc(std::move(other_disc));
     return true;

@@ -655,6 +655,11 @@ HLE_STDCALL(D3DDevice_Clear, 6) {
 
 HLE_STDCALL(D3DDevice_CopyRects, 5) {
     std::lock_guard<std::recursive_mutex> lock(g_lock);
+    static uint32_t s_cr_count = 0;
+    if (++s_cr_count <= 20 || s_cr_count % 60 == 0) {
+        LOGI("d3d8: CopyRects #%u src=%08X dst=%08X count=%u src_rects=%08X dst_points=%08X",
+             s_cr_count, a[0], a[3], a[2], a[1], a[4]);
+    }
     if (g_backend) g_backend->Copy(SurfaceOf(a[0]), SurfaceOf(a[3]), a[2], a[1], a[4]);
     return 0;
 }

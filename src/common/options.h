@@ -29,7 +29,7 @@ struct Options {
     uint32_t audio_output = 0;  // audio::kOutputAuto, kOutputStereo, kOutputSurround or kOutputMono
     std::string language = "int";  // one of kLanguages
     bool smaa = false;  // over the finished frame, HUD included; combines with msaa
-    bool pause_on_focus_loss = true;  // the game and its sound stop while the window is in the background
+    bool pause_on_focus_loss = false;  // the game and its sound stop while the window is in the background
     std::map<std::string, std::string> keys;  // action id to key names, absent is the default
 };
 Options& Opt();

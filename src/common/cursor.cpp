@@ -1,6 +1,7 @@
 // The game menus' cursor: cursor.png or cursor.dds beside the exe, untinted, its top-left pixel on the pointer. Its
 // visible part is sized, not the image, so padding and resolution don't matter: the longer side is 17 units of the 480
 // line page. Without a file the system arrow stays.
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -10,6 +11,9 @@
 #include <windows.h>
 #include <wincodec.h>
 #include <wrl/client.h>
+#else
+#include <SDL3/SDL.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -20,10 +24,13 @@
 #include "common/menu.h"
 #include "core/log.h"
 
+#ifdef _WIN32
 using Microsoft::WRL::ComPtr;
+#endif
 
 namespace app {
 
+#ifdef _WIN32
 namespace {
 
 constexpr float kPageHeight = 480.0f;
@@ -182,5 +189,13 @@ void* CursorImage() {
     }
     return g_cursor;
 }
+
+#else
+
+void* CursorImage() {
+    return nullptr;
+}
+
+#endif
 
 }  // namespace app

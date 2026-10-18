@@ -6,6 +6,7 @@
 #include <iterator>
 #include <string>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -13,6 +14,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
+#endif
 
 #include "app/app.h"
 #include "core/log.h"
@@ -247,7 +251,13 @@ void UpdateConfirm(X86Context& ctx, uint32_t ui, uint32_t root) {
     if (g_quitting) return;
     g_quitting = true;
     LOGI("quit: closing the window");
+#ifdef _WIN32
     PostMessageW(static_cast<HWND>(app::Window()), WM_CLOSE, 0, 0);
+#else
+    SDL_Event ev{};
+    ev.type = SDL_EVENT_QUIT;
+    SDL_PushEvent(&ev);
+#endif
 }
 
 void Tick(X86Context& ctx, uint32_t ui) {

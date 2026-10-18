@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -19,6 +20,12 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
+#include <strings.h>
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
+#endif
 
 #include "app/app.h"
 #include "common/aspect.h"
@@ -29,7 +36,11 @@ namespace input {
 
 namespace {
 
+#ifdef _WIN32
 HWND g_hwnd = nullptr;
+#else
+SDL_Window* g_window = nullptr;
+#endif
 std::atomic<int> g_dx{0};
 std::atomic<int> g_dy{0};
 std::atomic<uint64_t> g_take_ms{0};     // TakeMouse, asked every tick in play
@@ -137,6 +148,10 @@ constexpr Name kNames[] = {
 // not bindable: in the game's menus the arrows are the dpad, Enter accepts, Backspace backs out
 constexpr int kFixed[] = {VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_BACK};
 
+#ifndef _WIN32
+using UINT = uint32_t;
+#endif
+
 // US layout scan codes of the keys that move with the layout: a bind names the US key at that position
 struct Position {
     int vk;
@@ -175,6 +190,7 @@ UINT ScanOf(int vk) {
     return 0;
 }
 
+#ifdef _WIN32
 // the keyboard layout the player types with, switched per window thread
 HKL Layout() { return GetKeyboardLayout(GetWindowThreadProcessId(g_hwnd, nullptr)); }
 
@@ -208,6 +224,14 @@ std::string Label(int vk) {
     if (c > ' ' && c < 0x7F) return std::string(1, char(c));
     return NameOf(vk);
 }
+#else
+int LiveVk(int vk) { return vk; }
+int PositionVk(int live) { return live; }
+std::string Label(int vk) {
+    const char* name = NameOf(vk);
+    return name ? name : std::string();
+}
+#endif
 
 std::vector<int> Parse(const std::string& list) {
     std::vector<int> out;
@@ -231,13 +255,83 @@ std::string Join(const std::vector<int>& vks, bool labels = false) {
     return s;
 }
 
+#ifdef _WIN32
 bool Foreground() { return g_hwnd && GetForegroundWindow() == g_hwnd; }
+#else
+bool Foreground() { return g_window && (SDL_GetWindowFlags(g_window) & SDL_WINDOW_INPUT_FOCUS); }
+#endif
 bool Active() { return Foreground() && !app::MenuOpen(); }
 bool Wheel(int vk) { return vk == kWheelUp || vk == kWheelDown; }
+
+#ifndef _WIN32
+static SDL_Scancode VkToScancode(int vk) {
+    if (vk >= 'A' && vk <= 'Z') return SDL_Scancode(SDL_SCANCODE_A + (vk - 'A'));
+    if (vk >= '1' && vk <= '9') return SDL_Scancode(SDL_SCANCODE_1 + (vk - '1'));
+    if (vk == '0') return SDL_SCANCODE_0;
+    if (vk >= VK_F1 && vk <= VK_F12) return SDL_Scancode(SDL_SCANCODE_F1 + (vk - VK_F1));
+    if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) return SDL_Scancode(SDL_SCANCODE_KP_0 + (vk - VK_NUMPAD0));
+    switch (vk) {
+        case VK_SPACE: return SDL_SCANCODE_SPACE;
+        case VK_RETURN: return SDL_SCANCODE_RETURN;
+        case VK_ESCAPE: return SDL_SCANCODE_ESCAPE;
+        case VK_BACK: return SDL_SCANCODE_BACKSPACE;
+        case VK_TAB: return SDL_SCANCODE_TAB;
+        case VK_SHIFT: return SDL_SCANCODE_LSHIFT;
+        case VK_CONTROL: return SDL_SCANCODE_LCTRL;
+        case VK_MENU: return SDL_SCANCODE_LALT;
+        case VK_CAPITAL: return SDL_SCANCODE_CAPSLOCK;
+        case VK_UP: return SDL_SCANCODE_UP;
+        case VK_DOWN: return SDL_SCANCODE_DOWN;
+        case VK_LEFT: return SDL_SCANCODE_LEFT;
+        case VK_RIGHT: return SDL_SCANCODE_RIGHT;
+        case VK_INSERT: return SDL_SCANCODE_INSERT;
+        case VK_DELETE: return SDL_SCANCODE_DELETE;
+        case VK_HOME: return SDL_SCANCODE_HOME;
+        case VK_END: return SDL_SCANCODE_END;
+        case VK_PRIOR: return SDL_SCANCODE_PAGEUP;
+        case VK_NEXT: return SDL_SCANCODE_PAGEDOWN;
+        case VK_ADD: return SDL_SCANCODE_KP_PLUS;
+        case VK_SUBTRACT: return SDL_SCANCODE_KP_MINUS;
+        case VK_MULTIPLY: return SDL_SCANCODE_KP_MULTIPLY;
+        case VK_DIVIDE: return SDL_SCANCODE_KP_DIVIDE;
+        case VK_DECIMAL: return SDL_SCANCODE_KP_PERIOD;
+        case VK_OEM_1: return SDL_SCANCODE_SEMICOLON;
+        case VK_OEM_PLUS: return SDL_SCANCODE_EQUALS;
+        case VK_OEM_COMMA: return SDL_SCANCODE_COMMA;
+        case VK_OEM_MINUS: return SDL_SCANCODE_MINUS;
+        case VK_OEM_PERIOD: return SDL_SCANCODE_PERIOD;
+        case VK_OEM_2: return SDL_SCANCODE_SLASH;
+        case VK_OEM_3: return SDL_SCANCODE_GRAVE;
+        case VK_OEM_4: return SDL_SCANCODE_LEFTBRACKET;
+        case VK_OEM_5: return SDL_SCANCODE_BACKSLASH;
+        case VK_OEM_6: return SDL_SCANCODE_RIGHTBRACKET;
+        case VK_OEM_7: return SDL_SCANCODE_APOSTROPHE;
+        default: return SDL_SCANCODE_UNKNOWN;
+    }
+}
+#endif
+
 bool Down(int vk) {
     if (Wheel(vk)) return NowMs() - g_wheel_ms[vk == kWheelDown] < kTapMs;
+#ifdef _WIN32
     return GetAsyncKeyState(LiveVk(vk)) < 0;
+#else
+    if (vk == VK_LBUTTON) return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_LMASK) != 0;
+    if (vk == VK_RBUTTON) return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_RMASK) != 0;
+    if (vk == VK_MBUTTON) return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_MMASK) != 0;
+    if (vk == VK_XBUTTON1) return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_X1MASK) != 0;
+    if (vk == VK_XBUTTON2) return (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_X2MASK) != 0;
+    SDL_Scancode sc = VkToScancode(vk);
+    if (sc == SDL_SCANCODE_UNKNOWN) return false;
+    const bool* state = SDL_GetKeyboardState(nullptr);
+    if (!state) return false;
+    if (vk == VK_SHIFT) return state[SDL_SCANCODE_LSHIFT] || state[SDL_SCANCODE_RSHIFT];
+    if (vk == VK_CONTROL) return state[SDL_SCANCODE_LCTRL] || state[SDL_SCANCODE_RCTRL];
+    if (vk == VK_MENU) return state[SDL_SCANCODE_LALT] || state[SDL_SCANCODE_RALT];
+    return state[sc];
+#endif
 }
+
 bool Mouse(int vk) {
     bool button = vk == VK_LBUTTON || vk == VK_RBUTTON || vk == VK_MBUTTON || vk == VK_XBUTTON1 || vk == VK_XBUTTON2;
     return button || Wheel(vk);
@@ -248,16 +342,22 @@ bool GameDown(int vk) { return Down(vk) && !(g_menu && vk == VK_DELETE); }
 bool KeyCaptureUp() { return NowMs() - g_capture_ms <= kCaptureMs; }
 
 void Clip() {
+#ifdef _WIN32
     RECT r;
     RECT cur;
     GetClientRect(g_hwnd, &r);
     MapWindowPoints(g_hwnd, nullptr, reinterpret_cast<POINT*>(&r), 2);
     if (!GetClipCursor(&cur) || !EqualRect(&r, &cur)) ClipCursor(&r);
+#else
+    if (g_window) SDL_SetWindowRelativeMouseMode(g_window, true);
+#endif
 }
 
 // Windows asks for the cursor only when the mouse moves
 void RefreshCursor() {
+#ifdef _WIN32
     if (g_hwnd) PostMessageW(g_hwnd, WM_SETCURSOR, WPARAM(g_hwnd), MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+#endif
 }
 
 // the action is bound to this key and no key capture wants it
@@ -327,13 +427,18 @@ Held PressActions(const Binds& binds, bool play, Pad& p) {
 
 }  // namespace
 
-void StartMouse(void* hwnd) {
-    g_hwnd = static_cast<HWND>(hwnd);
+void StartMouse(void* handle) {
+#ifdef _WIN32
+    g_hwnd = static_cast<HWND>(handle);
     RAWINPUTDEVICE mouse{1, 2, 0, g_hwnd};  // generic desktop page, mouse usage
     RegisterRawInputDevices(&mouse, 1, sizeof(mouse));
+#else
+    g_window = static_cast<SDL_Window*>(handle);
+#endif
 }
 
 void OnRawInput(void* handle) {
+#ifdef _WIN32
     RAWINPUT ri;
     UINT size = sizeof(ri);
     HRAWINPUT input = static_cast<HRAWINPUT>(handle);
@@ -357,12 +462,64 @@ void OnRawInput(void* handle) {
         g_dx += m.lLastX;
         g_dy += m.lLastY;
     }
+#endif
 }
 
 void ReleaseCursor() {
+#ifdef _WIN32
     ClipCursor(nullptr);
+#else
+    if (g_window) SDL_SetWindowRelativeMouseMode(g_window, false);
+#endif
     g_settle = true;
 }
+
+#ifndef _WIN32
+void OnSdlEvent(const void* ev) {
+    const SDL_Event& e = *static_cast<const SDL_Event*>(ev);
+    switch (e.type) {
+        case SDL_EVENT_MOUSE_MOTION: {
+            if (!Active()) break;
+            SetKeyboard(true);
+            if (!Play()) {
+                if (g_window) SDL_SetWindowRelativeMouseMode(g_window, false);
+                break;
+            }
+            if (g_window) SDL_SetWindowRelativeMouseMode(g_window, true);
+            g_dx += int(e.motion.xrel);
+            g_dy += int(e.motion.yrel);
+            break;
+        }
+        case SDL_EVENT_MOUSE_WHEEL: {
+            int notch = e.wheel.y > 0 ? 1 : (e.wheel.y < 0 ? -1 : 0);
+            if (notch && Foreground()) g_wheel_ms[notch < 0] = NowMs();
+            if (Active()) {
+                SetKeyboard(true);
+                if (!Play()) {
+                    if (!KeyCaptureUp()) g_wheel += notch;
+                }
+            }
+            break;
+        }
+        case SDL_EVENT_TEXT_INPUT: {
+            for (const char* p = e.text.text; *p; ++p) {
+                OnChar((unsigned char)*p);
+            }
+            break;
+        }
+        case SDL_EVENT_WINDOW_FOCUS_LOST: {
+            ReleaseCursor();
+            break;
+        }
+        case SDL_EVENT_WINDOW_FOCUS_GAINED: {
+            g_settle = true;
+            break;
+        }
+    }
+}
+#else
+void OnSdlEvent(const void*) {}
+#endif
 
 bool TakeMouse(float& dx, float& dy) {
     uint64_t now = NowMs();
@@ -425,6 +582,7 @@ bool KeyboardActive() { return g_keyboard; }
 bool CursorShown() { return g_menu && g_keyboard; }
 
 bool Cursor(float& x, float& y, bool& down) {
+#ifdef _WIN32
     POINT p;
     RECT r;
     if (!Active() || !CursorShown()) return false;
@@ -440,6 +598,22 @@ bool Cursor(float& x, float& y, bool& down) {
     y = (float(p.y) - (h - vh) / 2) / vh;
     down = Down(VK_LBUTTON);
     return true;
+#else
+    if (!Active() || !CursorShown() || !g_window) return false;
+    float mx = 0, my = 0;
+    SDL_MouseButtonFlags btn = SDL_GetMouseState(&mx, &my);
+    int win_w = 0, win_h = 0;
+    SDL_GetWindowSize(g_window, &win_w, &win_h);
+    if (win_w <= 0 || win_h <= 0) return false;
+    float aspect = game::Aspect();
+    float w = float(win_w), h = float(win_h);
+    float vw = std::min(w, h * aspect);
+    float vh = vw / aspect;
+    x = (mx - (w - vw) / 2.0f) / vw;
+    y = (my - (h - vh) / 2.0f) / vh;
+    down = (btn & SDL_BUTTON_LMASK) != 0;
+    return true;
+#endif
 }
 
 int TakeWheel() { return g_wheel.exchange(0); }

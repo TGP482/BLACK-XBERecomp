@@ -1,7 +1,11 @@
 # Black (original Xbox), statically recompiled
 
 cmake_minimum_required(VERSION 3.25)
-project(black LANGUAGES C CXX RC)
+if(WIN32)
+    project(black LANGUAGES C CXX RC)
+else()
+    project(black LANGUAGES C CXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,9 +24,21 @@ endif()
 include(${SDK}/cmake/XbeRecomp.cmake)
 # src/sound, src/d3d, src/audio and src/common/game_files.cpp replace the SDK ones
 list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/(xdk/dsound|xdk/d3d8|gpu/d3d12|gpu/render_thread|audio/xaudio2|app/game_files)\\.cpp$")
+if(NOT WIN32)
+    list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/app/main\\.cpp$")
+endif()
 
 file(GLOB XBE_HOST_SOURCES CONFIGURE_DEPENDS src/*/*.cpp)
 list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/game/")
+if(WIN32)
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/audio/sdl3\\.cpp$")
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/common/main_linux\\.cpp$")
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/d3d/vulkan\\.cpp$")
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/common/europe_patch\\.cpp$")
+else()
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/audio/xaudio2\\.cpp$")
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/d3d/d3d12\\.cpp$")
+endif()
 
 # partitions as config/game.toml sets them
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS config/game.toml)
@@ -44,10 +60,16 @@ add_custom_target(build_info
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/build_info.cmake
     BYPRODUCTS ${BUILD_INFO}
     VERBATIM)
-# version.rc also embeds src/common/europe.patch
-set_source_files_properties(src/common/version.rc PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_CURRENT_SOURCE_DIR}/src/common"
-    OBJECT_DEPENDS "${BUILD_INFO};${CMAKE_CURRENT_SOURCE_DIR}/src/common/europe.patch")
-target_sources(Black PRIVATE src/common/version.rc)
+if(WIN32)
+    # version.rc also embeds src/common/europe.patch
+    set_source_files_properties(src/common/version.rc PROPERTIES
+        INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR};${CMAKE_CURRENT_SOURCE_DIR}/src/common"
+        OBJECT_DEPENDS "${BUILD_INFO};${CMAKE_CURRENT_SOURCE_DIR}/src/common/europe.patch")
+    target_sources(Black PRIVATE src/common/version.rc)
+else()
+    set_source_files_properties(src/common/europe_patch.cpp PROPERTIES
+        INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/src/common"
+        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/common/europe.patch")
+endif()
 add_dependencies(Black build_info)
 set_target_properties(Black PROPERTIES OUTPUT_NAME BLACK)
