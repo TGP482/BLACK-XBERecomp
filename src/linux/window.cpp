@@ -24,11 +24,13 @@ uint32_t g_texture_w = 0, g_texture_h = 0;
 std::mutex g_lock;  // the renderer thread writes a frame while the window thread shows it
 std::vector<uint8_t> g_buffers[2];
 int g_write = 0;   // the buffer the renderer writes into
-int g_ready = -1;  // the buffer with a finished frame
+int g_ready = -1;  // the buffer with the newest frame
+bool g_shown = false;  // the newest frame is on the screen
 uint32_t g_frame_w = 0, g_frame_h = 0;
 bool g_focused = true;
 bool g_running = true;
 std::atomic<bool> g_display_apply{false};
+uint64_t shown_ = 0;
 
 // SDL takes the title as bytes, the game's title is wide
 std::string Utf8(const wchar_t* text) {
@@ -57,6 +59,8 @@ void MakeTexture(uint32_t w, uint32_t h) {
         return;
     }
     SDL_SetTextureScaleMode(g_texture, SDL_SCALEMODE_LINEAR);
+    // the console's framebuffer carries no alpha, the frame is opaque
+    SDL_SetTextureBlendMode(g_texture, SDL_BLENDMODE_NONE);
     g_texture_w = w;
     g_texture_h = h;
 }
@@ -100,7 +104,9 @@ bool Open(const wchar_t* title, uint32_t width, uint32_t height, bool fullscreen
     MakeTexture(width, height);
     SDL_ShowWindow(g_window);
     if (fullscreen) SDL_SetWindowFullscreen(g_window, true);
-    LOGI("window: %ux%u, %s", width, height, fullscreen ? "fullscreen" : borderless ? "borderless" : "windowed");
+    LOGI("window: %ux%u, %s, %s", width, height, fullscreen ? "fullscreen" : borderless ? "borderless" : "windowed",
+         SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "no driver",
+         g_renderer ? SDL_GetRendererName(g_renderer) : "no renderer");
     return true;
 }
 
@@ -148,20 +154,29 @@ void Submit(const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t pit
     g_frame_h = height;
     g_ready = g_write;
     g_write ^= 1;
+    g_shown = false;
 }
 
 void Show() {
     std::lock_guard lock(g_lock);
-    if (g_ready < 0 || !g_renderer) return;
+    if (g_ready < 0 || g_shown || !g_renderer) return;
     if (!g_texture || g_texture_w != g_frame_w || g_texture_h != g_frame_h) MakeTexture(g_frame_w, g_frame_h);
     if (!g_texture) return;
-    SDL_UpdateTexture(g_texture, nullptr, g_buffers[g_ready].data(), int(g_frame_w * 4));
-    SDL_RenderTexture(g_renderer, g_texture, nullptr, nullptr);
+    if (!SDL_UpdateTexture(g_texture, nullptr, g_buffers[g_ready].data(), int(g_frame_w * 4)))
+        LOGE("window: texture %ux%u update: %s", g_frame_w, g_frame_h, SDL_GetError());
+    if (!SDL_RenderTexture(g_renderer, g_texture, nullptr, nullptr))
+        LOGE("window: render: %s", SDL_GetError());
     SDL_RenderPresent(g_renderer);
-    g_ready = -1;
+    g_shown = true;
+    shown_++;
 }
 
+uint64_t Shown() { return shown_; }
+
 bool SaveScreenshot(const char* path) {
+    std::lock_guard lock(g_lock);
+    if (g_ready < 0 || !g_renderer) return false;
+    if (g_texture) SDL_RenderTexture(g_renderer, g_texture, nullptr, nullptr);
     SDL_Surface* surface = SDL_RenderReadPixels(g_renderer, nullptr);
     if (!surface) return false;
     bool ok = SDL_SaveBMP(surface, path);

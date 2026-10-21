@@ -15,6 +15,8 @@ bool Pump();
 void Submit(const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t pitch);
 // draws the last submitted frame
 void Show();
+// the frames shown so far
+uint64_t Shown();
 // the window's picture as a BMP, for the milestone's check
 bool SaveScreenshot(const char* path);
 // the window has the focus

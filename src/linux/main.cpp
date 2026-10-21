@@ -40,9 +40,19 @@ int main(int argc, char** argv) {
         return 1;
     }
     // the guest renders on its own threads: the window thread shows the frames and pumps the events
+    // SHOT=<seconds>: the window's picture as a BMP that many seconds in, for the milestone's check
+    const char* shot = std::getenv("SHOT");
+    int shot_at = shot ? std::atoi(shot) : 0;
+    auto started = std::chrono::steady_clock::now();
     for (uint64_t frame = 0;; frame++) {
         if (!window::Pump()) break;  // the player closed the window
         window::Show();
+        if (shot_at && window::Shown() &&
+            std::chrono::steady_clock::now() - started > std::chrono::seconds(shot_at)) {
+            window::SaveScreenshot("shot.bmp");
+            LOGI("window: wrote shot.bmp");
+            shot_at = 0;
+        }
         if (frame % 500 == 0) logx::Flush();
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
