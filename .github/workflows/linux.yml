@@ -1,0 +1,21 @@
+name: linux
+
+on: [push, pull_request]
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang ninja-build cmake libx11-dev libxext-dev libxrandr-dev libwayland-dev \
+            libasound2-dev libpulse-dev
+      - name: Configure
+        run: |
+          mkdir -p assets
+          touch assets/default.xbe
+          cmake --preset linux-release
+      - name: Build the recompiler and the symbol tool
+        run: cmake --build out/build/linux-release --target xbe_recomp xbe_symbols

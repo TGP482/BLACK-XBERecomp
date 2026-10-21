@@ -57,7 +57,7 @@ We believe a native Linux host and renderer built on the existing recompilation 
 
 | # | Milestone | Outcome | Status | Plan |
 |---|---|---|---|---|
-| 1 | Linux toolchain green | The project configures and builds on Linux from a clean checkout against the unmodified upstream runtime, and the binary starts and reports a clean run | pending | — |
+| 1 | Linux toolchain green | The project configures and builds on Linux from a clean checkout against the unmodified upstream runtime, and the binary starts and reports a clean run | complete | `~/.opencode/plan/2026-10-21-linux-toolchain-green.md` |
 | 2 | Booting on Linux | The recompiled game starts from the user's own assets and reaches its first frame in a window, on the CPU rendering path | pending | — |
 | 3 | Playable core | Mouse and keyboard, sound, the in-game options menu and save handling all work, and the game is playable end to end | pending | — |
 | 4 | Native GPU renderer | Hardware-accelerated rendering replaces the CPU path at full frame rate, drawing the same scene as the Windows build | pending | — |
