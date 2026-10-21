@@ -22,6 +22,11 @@ else()
     FetchContent_MakeAvailable(xbe_sdk)
     set(SDK ${xbe_sdk_SOURCE_DIR})
 endif()
+if(NOT WIN32)
+    # the CPU path draws into an SDL texture: SDL's renderer is off in the SDK's build. The SDK sets the cache
+    # variable SDL_RENDER, which SDL3's own loop reads uppercased, so a plain variable here shadows it
+    set(SDL_RENDER ON)
+endif()
 include(${SDK}/cmake/XbeRecomp.cmake)
 # src/sound, src/d3d, src/audio and src/common/game_files.cpp replace the SDK ones
 if(WIN32)
@@ -70,11 +75,11 @@ if(NOT WIN32)
     get_target_property(BLACK_LINK_OPTIONS Black LINK_OPTIONS)
     list(REMOVE_ITEM BLACK_LINK_OPTIONS -fuse-ld=lld)
     set_property(TARGET Black PROPERTY LINK_OPTIONS "${BLACK_LINK_OPTIONS}")
-    # the CPU path draws into an SDL texture: the SDK's build leaves SDL's renderer off
-    set(SDL_RENDER ON CACHE BOOL "" FORCE)
     # the SDK's harness rasterizer draws the frames on the CPU
     target_sources(Black PRIVATE ${SDK}/harness/reference_renderer.cpp)
     target_include_directories(Black PRIVATE ${SDK}/harness)
+    # the CPU rasterizer reads the converted vertices, not the guest's own: the harness builds the SDK the same way
+    target_compile_definitions(Black PRIVATE XBE_RAW_VERTICES=0 XBE_CPU_RASTERIZER=1)
     # the SDK's compat headers stand in for the few Win32 names the portable sources name
     target_include_directories(Black PRIVATE ${SDK}/harness/compat)
     # SDL3's headers, for the Linux host sources

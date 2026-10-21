@@ -1092,10 +1092,21 @@ HLE_STDCALL(D3DDevice_SetPixelShaderConstant, 3) {
 
 // drawing
 
+// the XDK's shaders write the position in RHW space: oPos.w comes out as 0 and the hardware reads it as 1. The CPU
+// rasterizer clips on that w, so the constants the shaders take it from carry the 1 there. The D3D 12 path divides
+// the w away, so the Windows build keeps the values it had
+void RhwW() {
+#ifdef XBE_CPU_RASTERIZER
+    g_state.vsc[59][3] = 1.0f;
+    g_state.vsc[191][3] = 1.0f;
+#endif
+}
+
 HLE_STDCALL(D3DDevice_DrawVertices, 3) {
     std::lock_guard<std::recursive_mutex> lock(g_lock);
     SyncDeferred();
     LatchFog();
+    RhwW();
     if (g_backend) g_backend->Draw(g_state, a[0], a[1], a[2], nullptr);
     return 0;
 }
@@ -1105,6 +1116,7 @@ HLE_STDCALL(D3DDevice_DrawIndexedVertices, 3) {
     SyncDeferred();
     LatchFog();
     const uint8_t* indices = a[2] ? static_cast<const uint8_t*>(HostPtr(a[2])) : nullptr;
+    RhwW();
     if (g_backend) g_backend->Draw(g_state, a[0], 0, a[1], indices);
     return 0;
 }
@@ -1149,6 +1161,7 @@ void DrawUp(uint32_t prim, uint32_t count, const void* vertices, uint32_t stride
     LatchFog();
     auto stream = g_state.streams[0];
     g_state.streams[0] = {UpVertices(vertices, count * stride), stride};
+    RhwW();
     g_backend->Draw(g_state, prim, 0, count, nullptr);
     g_state.streams[0] = stream;
 }
