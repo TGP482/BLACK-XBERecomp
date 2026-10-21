@@ -37,7 +37,7 @@ if(WIN32)
     list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/linux/")
 else()
     # the Windows only host sources; src/linux replaces them
-    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/(audio/xaudio2|common/(cursor|focus_pause_win32|game_info_win32|menu_panel|monitor|mouse_keyboard))\\.cpp$")
+    list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/(audio/xaudio2|d3d/d3d12|common/(cursor|focus_pause_win32|game_info_win32|menu_panel|monitor|mouse_keyboard))\\.cpp$")
 endif()
 # gyro aiming reads the controllers' sensors through SDL
 set_source_files_properties(src/common/gyro.cpp PROPERTIES INCLUDE_DIRECTORIES "${sdl3_SOURCE_DIR}/include")
@@ -74,6 +74,8 @@ if(NOT WIN32)
     target_include_directories(Black PRIVATE ${SDK}/harness/compat)
     # SDL3's headers, for the Linux host sources
     target_include_directories(Black PRIVATE ${sdl3_SOURCE_DIR}/include)
+    # the SDK's POSIX memory path calls ftruncate without its header
+    target_compile_options(Black PRIVATE -include unistd.h)
 endif()
 
 # build_info.h for the version resource, rewritten only when the commit changes
