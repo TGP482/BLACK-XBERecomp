@@ -104,7 +104,8 @@ bool Open(const wchar_t* title, uint32_t width, uint32_t height, bool fullscreen
     MakeTexture(width, height);
     SDL_ShowWindow(g_window);
     if (fullscreen) SDL_SetWindowFullscreen(g_window, true);
-    LOGI("window: %ux%u, %s, %s", width, height, fullscreen ? "fullscreen" : borderless ? "borderless" : "windowed",
+    LOGI("window: %ux%u %s, %s driver, %s renderer", width, height,
+         fullscreen ? "fullscreen" : borderless ? "borderless" : "windowed",
          SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "no driver",
          g_renderer ? SDL_GetRendererName(g_renderer) : "no renderer");
     return true;
@@ -175,10 +176,15 @@ uint64_t Shown() { return shown_; }
 
 bool SaveScreenshot(const char* path) {
     std::lock_guard lock(g_lock);
-    if (g_ready < 0 || !g_renderer) return false;
-    if (g_texture) SDL_RenderTexture(g_renderer, g_texture, nullptr, nullptr);
-    SDL_Surface* surface = SDL_RenderReadPixels(g_renderer, nullptr);
+    if (g_ready < 0) return false;
+    // the guest's frame as it is: the console's framebuffer carries no alpha, so it is filled in
+    SDL_Surface* surface = SDL_CreateSurface(int(g_frame_w), int(g_frame_h), SDL_PIXELFORMAT_BGRA32);
     if (!surface) return false;
+    for (uint32_t y = 0; y < g_frame_h; y++) {
+        uint8_t* row = static_cast<uint8_t*>(surface->pixels) + size_t(y) * surface->pitch;
+        std::memcpy(row, g_buffers[g_ready].data() + size_t(y) * g_frame_w * 4, size_t(g_frame_w) * 4);
+        for (uint32_t x = 0; x < g_frame_w; x++) row[x * 4 + 3] = 255;
+    }
     bool ok = SDL_SaveBMP(surface, path);
     SDL_DestroySurface(surface);
     return ok;
