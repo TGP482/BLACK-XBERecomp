@@ -16,6 +16,7 @@
 #include "gpu/backend.h"
 #include "gpu/texture.h"
 #include "gpu/vertex.h"
+#include "image_symbols.h"
 #include "xdk/d3d8.h"
 #include "xdk/hle.h"
 #include "xdk/layout.h"
@@ -23,7 +24,8 @@
 using namespace kernel;
 
 namespace dispatch {
-bool InCode(uint32_t va);  // cpu/dispatch.cpp
+// is the address in the recompiled code? the SDK's dispatch.cpp has no such query
+bool InCode(uint32_t va) { return va >= X86CodeBase && va < X86CodeEnd; }
 }
 
 // configs written before the SDK knew the name
