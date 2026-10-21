@@ -58,7 +58,7 @@ We believe a native Linux host and renderer built on the existing recompilation 
 | # | Milestone | Outcome | Status | Plan |
 |---|---|---|---|---|
 | 1 | Linux toolchain green | The project configures and builds on Linux from a clean checkout against the unmodified upstream runtime, and the binary starts and reports a clean run | complete | `~/.opencode/plan/2026-10-21-linux-toolchain-green.md` |
-| 2 | Booting on Linux | The recompiled game starts from the user's own assets and reaches its first frame in a window, on the CPU rendering path | pending | — |
+| 2 | Booting on Linux | The recompiled game starts from the user's own assets and reaches its first frame in a window, on the CPU rendering path | complete | `~/.opencode/plan/2026-10-21-linux-window-cpu-renderer.md` |
 | 3 | Playable core | Mouse and keyboard, sound, the in-game options menu and save handling all work, and the game is playable end to end | pending | — |
 | 4 | Native GPU renderer | Hardware-accelerated rendering replaces the CPU path at full frame rate, drawing the same scene as the Windows build | pending | — |
 | 5 | Feature parity | Every documented feature works on Linux: display modes and monitor selection, resolution and render scale, field of view, frame cap, V-Sync, HDR output, frame-rate counter, FMV scaling, MSAA, SMAA, anisotropic filtering, draw distance, ambient occlusion, reload blur, controller support, gyro aiming, rebinding, skip intro, pause on focus loss, custom cursor and the settings overlay | pending | — |
@@ -66,7 +66,7 @@ We believe a native Linux host and renderer built on the existing recompilation 
 
 ## Open Questions
 
-- [ ] Does the upstream CPU rasterizer cover the shader features this title actually uses (fixed-function pixel combiners, shadow maps, depth bias, alpha-tested foliage)? Validation: run the title on the CPU path and capture frames for comparison against the Windows build.
+- [x] Does the upstream CPU rasterizer cover the shader features this title actually uses (fixed-function pixel combiners, shadow maps, depth bias, alpha-tested foliage)? Validation: run the title on the CPU path and capture frames for comparison against the Windows build. Answered in milestone 2: the rasterizer draws the title's geometry (about 14 FPS at 640x480) but its picture is far darker than the Windows build's, so the title's textured and shaded content is not covered. Two host-side gaps had to be closed for the rasterizer to draw at all: the SDK's vertex path has to run in its converted mode (`XBE_RAW_VERTICES=0`, as the upstream harness builds it) and the console's RHW-space `oPos.w` has to carry the 1 the hardware reads it as. Milestone 4's native renderer is where the picture is closed.
 - [ ] Which shader translation path carries the console's generated HLSL into SPIR-V with full coverage — an HLSL-capable offline compiler or a DXC-based one? Validation: compile the full shader corpus the title generates with each candidate and record failures.
 - [ ] Can the CPU path and the native renderer share the same host, or does the CPU path need its own presentation route? Validation: prototype both behind the same host interface.
 - [ ] Can HDR output be delivered on Linux at all, given it is compositor-dependent on both X11 and Wayland? Validation: test against a HDR-capable display under each compositor; if not deliverable, document SDR behaviour as the parity definition.
