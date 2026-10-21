@@ -1,9 +1,12 @@
-// the Linux side of the platform hooks: no window yet, so the messages go nowhere and the answers are the defaults
+// the Linux side of the platform hooks: the messages go nowhere, the answers are the defaults
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
+#include <SDL3/SDL.h>
+
 #include "common/platform.h"
+#include "linux/window.h"
 
 namespace platform {
 
@@ -40,10 +43,15 @@ bool Confirm(const wchar_t* message) {
     return false;
 }
 
-void RequestClose() {}
+void RequestClose() {
+    // the event pump sees the quit and ends the run loop
+    SDL_Event event{};
+    event.type = SDL_EVENT_QUIT;
+    SDL_PushEvent(&event);
+}
 
 const char* SystemLanguage() { return LanguageFromLocale(); }
 
-bool WindowUnfocused() { return false; }
+bool WindowUnfocused() { return window::Handle() && !window::Focused(); }
 
 }  // namespace platform
