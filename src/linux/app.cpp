@@ -14,6 +14,7 @@
 
 #include "app/app.h"
 #include "core/log.h"
+#include "linux/window.h"
 
 namespace app {
 
@@ -141,8 +142,8 @@ int Instance() {
     return n;
 }
 
-// the game window is not up yet on Linux
-void* Window() { return nullptr; }
+// the game's window, the SDL window the Linux host opens
+void* Window() { return window::Handle(); }
 
 bool OpenSplash() { return false; }
 void SplashFirstFrame() {}
