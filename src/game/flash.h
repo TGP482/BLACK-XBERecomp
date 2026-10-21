@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 
+#include "common/casing.h"
 #include "xdk/hle.h"
 
 namespace flash {
@@ -92,7 +93,7 @@ inline uint32_t Find(uint32_t members, const char* name) {
     for (uint32_t i = 0; table && slots <= 0x1000 && i < slots; i++) {
         uint32_t key = kernel::R32(table + i * kMemberSize);
         uint32_t value = kernel::R32(table + i * kMemberSize + 4);
-        if (key && key != kDeletedName && _stricmp(NameText(key), name) == 0) return Type(value) ? value : 0;
+        if (key && key != kDeletedName && nocase::Equals(NameText(key), name)) return Type(value) ? value : 0;
     }
     return 0;
 }

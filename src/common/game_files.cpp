@@ -2,6 +2,11 @@
 // this executable was recompiled from; another release's would run its own data under this code. The Europe xbe is
 // turned into the US one by europe.patch (tools/europe_patch.py); the rest of the Europe disc is the US files plus
 // its languages.
+#include <algorithm>
+#include <cwctype>
+#include <fstream>
+
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -9,12 +14,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-
-#include <algorithm>
-#include <cwctype>
-#include <fstream>
+#endif
 
 #include "app/app.h"
+#include "common/platform.h"
 #include "core/log.h"
 #include "image_symbols.h"
 #include "kernel/crypto.h"
@@ -142,11 +145,18 @@ struct EuropePatch {
 
 // europe.patch from the executable's resources
 bool LoadEuropePatch(const uint8_t*& data, size_t& size) {
+#ifdef _WIN32
     HRSRC res = FindResourceW(nullptr, L"EUROPE", RT_RCDATA);
     if (!res) return false;
     data = static_cast<const uint8_t*>(LockResource(LoadResource(nullptr, res)));
     size = SizeofResource(nullptr, res);
     return data && size;
+#else
+    // the patch rides in the executable's resources on Windows: the Europe release needs that build
+    (void)data;
+    (void)size;
+    return false;
+#endif
 }
 
 // the US xbe in place of the Europe one; false leaves it as it was
@@ -219,14 +229,13 @@ bool FindGame(GameFiles& game) {
     }
 
     if (other_name.empty()) {
-        MessageBoxW(nullptr, kGame.missing, kGame.short_title, MB_ICONERROR);
+        platform::MissingGame(kGame.missing);
         return false;
     }
     std::wstring text = other_name.filename().wstring() +
                         L" is a different release of the game than this build was made from, and will most likely "
                         L"crash.\n\nStart it anyway?";
-    int answer = MessageBoxW(nullptr, text.c_str(), kGame.short_title, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
-    if (answer != IDYES) return false;
+    if (!platform::Confirm(text.c_str())) return false;
     game = std::move(other);
     kernel::MountDisc(std::move(other_disc));
     return true;

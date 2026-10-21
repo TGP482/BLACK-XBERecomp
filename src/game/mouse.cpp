@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "common/casing.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
 #include "core/log.h"
@@ -335,7 +336,7 @@ uint32_t CursorInput(X86Context& ctx, const MenuPage& page, const Pointer& p) {
 }
 
 bool IsMenuPage(const char* name) {
-    auto film = [name](const char* page) { return _strnicmp(name, page, std::strlen(page)) == 0; };
+    auto film = [name](const char* page) { return nocase::StartsWith(name, page); };
     return *name && std::none_of(std::begin(kFilmPages), std::end(kFilmPages), film);
 }
 

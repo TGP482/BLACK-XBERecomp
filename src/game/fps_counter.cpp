@@ -7,6 +7,7 @@
 
 #include "app/app.h"
 #include "common/aspect.h"
+#include "common/casing.h"
 #include "common/options.h"
 #include "game/flash.h"
 #include "game/layout.h"
@@ -90,14 +91,14 @@ const TitlePage* CurrentTitlePage() {
     if (!ui) return nullptr;
     const char* name = static_cast<const char*>(HostPtr(ui + kPageName));
     for (const TitlePage& page : kTitlePages)
-        if (_strnicmp(name, page.name, std::strlen(page.name)) == 0) return &page;
+        if (nocase::StartsWith(name, page.name)) return &page;
     return nullptr;
 }
 
 uint32_t Child(uint32_t clip, const char* name) {
     int left = 4096;
     for (uint32_t child = flash::FirstChild(clip); child && left; child = R32(child + kClipNext), left--)
-        if (flash::IsClip(child) && _stricmp(flash::Name(child), name) == 0) return child;
+        if (flash::IsClip(child) && nocase::Equals(flash::Name(child), name)) return child;
     return 0;
 }
 

@@ -9,6 +9,7 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "common/casing.h"
 #include "common/mouse_keyboard.h"
 #include "common/translations.h"
 #include "game/flash.h"
@@ -79,8 +80,8 @@ void Prompts(uint32_t clip, bool keyboard, int depth) {
         uint32_t text = 0;
         for (uint32_t part = flash::FirstChild(child); part && left; part = R32(part + flash::kClipNext), left--) {
             if (!flash::IsClip(part)) continue;
-            if (_stricmp(flash::Name(part), "Button") == 0) icon = part;
-            if (_stricmp(flash::Name(part), "Text") == 0) text = part;
+            if (nocase::Equals(flash::Name(part), "Button")) icon = part;
+            if (nocase::Equals(flash::Name(part), "Text")) text = part;
         }
         if (!icon || !text) {
             if (depth < 8) Prompts(child, keyboard, depth + 1);

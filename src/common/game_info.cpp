@@ -2,14 +2,6 @@
 #include <atomic>
 #include <iterator>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-
 #include <toml++/toml.hpp>
 
 #include "app/app.h"
@@ -18,73 +10,12 @@
 #include "common/monitor.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
+#include "common/platform.h"
 #include "core/log.h"
 
 namespace game {
 
 namespace {
-
-constexpr uint32_t kHostApplyDisplay = WM_APP + 1;  // main.cpp's kApplyDisplay
-constexpr intptr_t kKeyWasDown = 1 << 30;  // WM_KEYDOWN lParam: a held key's repeat
-
-// the panel shows the system arrow, the game's menus their own cursor, play none
-HCURSOR WindowCursor() {
-    if (app::MenuOpen()) return LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));  // IDC_ARROW
-    if (input::CursorShown()) return static_cast<HCURSOR>(app::CursorImage());
-    return nullptr;
-}
-
-// the panel's keys and the mouse; F3 and the display mode stay with the host
-bool Message(void* hwnd, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* result) {
-    using namespace app;
-    switch (msg) {
-        case WM_CREATE:
-            UpdateSplashMonitor();
-            UpdateWindowMonitor(hwnd);
-            break;
-        case kHostApplyDisplay:
-            UpdateWindowMonitor(hwnd);
-            break;
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-            if (!(lp & kKeyWasDown) && input::PanelKey(int(wp))) {
-                ToggleMenu();
-                *result = 0;
-                return true;
-            }
-            if (!(lp & kKeyWasDown) && !MenuOpen() && input::HudKey(int(wp))) {
-                g_hide_hud = !g_hide_hud;
-                *result = 0;
-                return true;
-            }
-            if (msg == WM_KEYDOWN && wp == VK_ESCAPE && MenuOpen() && !Capturing()) ToggleMenu();
-            break;
-        case WM_SYSCOMMAND:
-            // a bound Alt must not open the window menu
-            if ((wp & 0xFFF0) == SC_KEYMENU) {
-                *result = 0;
-                return true;
-            }
-            break;
-        case WM_CHAR:
-            input::OnChar(unsigned(wp));
-            break;
-        case WM_INPUT:
-            input::OnRawInput(reinterpret_cast<void*>(lp));
-            break;
-        case WM_ACTIVATE:
-            if (LOWORD(wp) == WA_INACTIVE) input::ReleaseCursor();
-            break;
-        case WM_SETCURSOR:
-            if (LOWORD(lp) == HTCLIENT) {
-                SetCursor(WindowCursor());
-                *result = TRUE;
-                return true;
-            }
-            break;
-    }
-    return false;
-}
 
 // A pad that has not reported yet can read its triggers half pressed (Proton, Steam Deck): fire held.
 // A trigger counts once seen released.
@@ -125,16 +56,8 @@ void Rumble(int port, uint16_t& left, uint16_t& right) {
     right = uint16_t(std::min(right * percent / 100, 0xFFFFu));
 }
 
-// the Windows display language when the game has it, else English
-std::string SystemLanguage() {
-    switch (PRIMARYLANGID(GetUserDefaultUILanguage())) {
-        case LANG_FRENCH: return "fra";
-        case LANG_GERMAN: return "deu";
-        case LANG_ITALIAN: return "ita";
-        case LANG_SPANISH: return "esp";
-        default: return "int";
-    }
-}
+// the display language when the game has it, else English
+std::string SystemLanguage() { return platform::SystemLanguage(); }
 
 // what the options list cannot hold
 void Load(const void* table) {
@@ -224,7 +147,7 @@ const app::GameInfo app::kGame = {
     .init = game::Init,
     .loaded = nullptr,
     .window = input::StartMouse,
-    .message = game::Message,
+    .message = platform::Message,
     .ui = app::DrawUi,
     .pad = game::Pad,
     .rumble = game::Rumble,

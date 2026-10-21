@@ -6,15 +6,9 @@
 #include <iterator>
 #include <string>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-
 #include "app/app.h"
+#include "common/casing.h"
+#include "common/platform.h"
 #include "core/log.h"
 #include "game/flash.h"
 #include "game/layout.h"
@@ -65,7 +59,7 @@ bool g_quitting = false;
 bool g_reported = false;  // a failure is logged once
 
 // page names differ in case between the game and the scripts
-bool HasPrefix(const char* text, const char* prefix) { return _strnicmp(text, prefix, std::strlen(prefix)) == 0; }
+bool HasPrefix(const char* text, const char* prefix) { return nocase::StartsWith(text, prefix); }
 
 const TitleMenu* FindTitleMenu(const char* page) {
     for (const TitleMenu& menu : kTitleMenus)
@@ -183,7 +177,7 @@ void UpdateConfirm(X86Context& ctx, uint32_t ui, uint32_t root) {
     if (g_quitting) return;
     g_quitting = true;
     LOGI("quit: closing the window");
-    PostMessageW(static_cast<HWND>(app::Window()), WM_CLOSE, 0, 0);
+    platform::RequestClose();
 }
 
 void Tick(X86Context& ctx, uint32_t ui) {

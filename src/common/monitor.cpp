@@ -82,6 +82,42 @@ std::vector<Display> Displays() {
     return out;
 }
 
+std::vector<app::Mode> Modes(const std::string& device) {
+    std::vector<app::Mode> modes;
+    std::wstring name(device.begin(), device.end());
+    const wchar_t* monitor = name.empty() ? nullptr : name.c_str();
+    DEVMODEW dm{};
+    dm.dmSize = sizeof(dm);
+    for (DWORD i = 0; EnumDisplaySettingsW(monitor, i, &dm); i++) {
+        if (dm.dmBitsPerPel < 32 || dm.dmPelsWidth < 640) continue;
+        app::Mode m{dm.dmPelsWidth, dm.dmPelsHeight};
+        auto same = [&](const app::Mode& o) { return o.width == m.width && o.height == m.height; };
+        if (std::none_of(modes.begin(), modes.end(), same)) modes.push_back(m);
+    }
+    std::sort(modes.begin(), modes.end(), [](const app::Mode& a, const app::Mode& b) {
+        return a.width != b.width ? a.width < b.width : a.height < b.height;
+    });
+    return modes;
+}
+
+// the game window's monitor's refresh rate, read again each second (a mode change, a move to another monitor); 0
+// when unreadable
+uint32_t RefreshRate() {
+    static uint32_t rate = 0;
+    static ULONGLONG next = 0;
+    ULONGLONG now = GetTickCount64();
+    if (now < next) return rate;
+    next = now + 1000;
+    MONITORINFOEXW mi{};
+    mi.cbSize = sizeof(mi);
+    DEVMODEW mode{};
+    mode.dmSize = sizeof(mode);
+    HMONITOR monitor = MonitorFromWindow(static_cast<HWND>(app::Window()), MONITOR_DEFAULTTOPRIMARY);
+    bool read = GetMonitorInfoW(monitor, &mi) && EnumDisplaySettingsW(mi.szDevice, ENUM_CURRENT_SETTINGS, &mode);
+    rate = read && mode.dmDisplayFrequency > 1 ? mode.dmDisplayFrequency : 0;
+    return rate;
+}
+
 void UpdateWindowMonitor(void* window) {
     HWND hwnd = static_cast<HWND>(window);
     HMONITOR target = MonitorHandle(Monitor());
