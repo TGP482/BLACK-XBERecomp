@@ -70,6 +70,8 @@ if(NOT WIN32)
     get_target_property(BLACK_LINK_OPTIONS Black LINK_OPTIONS)
     list(REMOVE_ITEM BLACK_LINK_OPTIONS -fuse-ld=lld)
     set_property(TARGET Black PROPERTY LINK_OPTIONS "${BLACK_LINK_OPTIONS}")
+    # the CPU path draws into an SDL texture: the SDK's build leaves SDL's renderer off
+    set(SDL_RENDER ON CACHE BOOL "" FORCE)
     # the SDK's compat headers stand in for the few Win32 names the portable sources name
     target_include_directories(Black PRIVATE ${SDK}/harness/compat)
     # SDL3's headers, for the Linux host sources
