@@ -72,6 +72,9 @@ if(NOT WIN32)
     set_property(TARGET Black PROPERTY LINK_OPTIONS "${BLACK_LINK_OPTIONS}")
     # the CPU path draws into an SDL texture: the SDK's build leaves SDL's renderer off
     set(SDL_RENDER ON CACHE BOOL "" FORCE)
+    # the SDK's harness rasterizer draws the frames on the CPU
+    target_sources(Black PRIVATE ${SDK}/harness/reference_renderer.cpp)
+    target_include_directories(Black PRIVATE ${SDK}/harness)
     # the SDK's compat headers stand in for the few Win32 names the portable sources name
     target_include_directories(Black PRIVATE ${SDK}/harness/compat)
     # SDL3's headers, for the Linux host sources
