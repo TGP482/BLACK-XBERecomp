@@ -1,6 +1,7 @@
 // the game's frame on the screen: the window, the renderer and the texture the CPU renderer fills
 #include "linux/window.h"
 
+#include <atomic>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -8,6 +9,7 @@
 
 #include <SDL3/SDL.h>
 
+#include "app/app.h"
 #include "core/log.h"
 
 namespace window {
@@ -26,6 +28,7 @@ int g_ready = -1;  // the buffer with a finished frame
 uint32_t g_frame_w = 0, g_frame_h = 0;
 bool g_focused = true;
 bool g_running = true;
+std::atomic<bool> g_display_apply{false};
 
 // SDL takes the title as bytes, the game's title is wide
 std::string Utf8(const wchar_t* text) {
@@ -56,6 +59,22 @@ void MakeTexture(uint32_t w, uint32_t h) {
     SDL_SetTextureScaleMode(g_texture, SDL_SCALEMODE_LINEAR);
     g_texture_w = w;
     g_texture_h = h;
+}
+
+// the settings' display mode and size on the window
+void ApplySettings() {
+    if (!g_window) return;
+    const app::Settings& s = app::Get();
+    bool fullscreen = s.display_mode == app::DisplayMode::Fullscreen;
+    bool borderless = s.display_mode == app::DisplayMode::Borderless;
+    if (fullscreen) {
+        SDL_SetWindowFullscreen(g_window, true);
+        return;
+    }
+    SDL_SetWindowFullscreen(g_window, false);
+    SDL_SetWindowBordered(g_window, !borderless);
+    app::Mode mode = borderless ? app::Desktop() : app::Output();
+    SDL_SetWindowSize(g_window, int(mode.width), int(mode.height));
 }
 
 }  // namespace
@@ -115,6 +134,7 @@ bool Pump() {
                 break;
         }
     }
+    if (g_display_apply.exchange(false)) ApplySettings();
     return g_running;
 }
 
@@ -150,5 +170,7 @@ bool SaveScreenshot(const char* path) {
 }
 
 bool Focused() { return g_focused; }
+
+void RequestDisplayApply() { g_display_apply = true; }
 
 }  // namespace window

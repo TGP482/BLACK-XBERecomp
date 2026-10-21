@@ -6,7 +6,6 @@
 
 #include "app/app.h"
 #include "common/menu.h"
-#include "common/monitor.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
 
@@ -88,16 +87,3 @@ void DrawUi(double) {}  // the F10 panel arrives in milestone 5
 void* CursorImage() { return nullptr; }
 
 }  // namespace app
-
-namespace game {
-
-std::vector<Display> Displays() {
-    // one display until the window enumerates them through SDL
-    return {Display{"linux-display-0", 0, app::Mode{1280, 720}, true}};
-}
-
-std::vector<app::Mode> Modes(const std::string&) { return {{1280, 720}}; }
-
-uint32_t RefreshRate() { return 60; }
-
-}  // namespace game

@@ -19,5 +19,7 @@ void Show();
 bool SaveScreenshot(const char* path);
 // the window has the focus
 bool Focused();
+// the display settings changed: the window thread applies them
+void RequestDisplayApply();
 
 }  // namespace window

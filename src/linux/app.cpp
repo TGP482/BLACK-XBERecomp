@@ -10,6 +10,7 @@
 #include <thread>
 #include <unistd.h>
 
+#include <SDL3/SDL.h>
 #include <toml++/toml.hpp>
 
 #include "app/app.h"
@@ -94,10 +95,16 @@ void LogSettings() {
 
 void LogSystem() { LOGR("host: Linux, %s", ExeDir().string().c_str()); }
 
-// the window's own size comes with the window in milestone 2
-void ApplyDisplay() {}
+// the display apply: the window thread does it, the game thread only asks
+void ApplyDisplay() { window::RequestDisplayApply(); }
 
-Mode Desktop() { return {1280, 720}; }
+// the primary display's usable area
+Mode Desktop() {
+    SDL_Rect bounds{};
+    if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &bounds))
+        return {uint32_t(bounds.w), uint32_t(bounds.h)};
+    return {1280, 720};
+}
 
 Mode Output() {
     const Settings& s = Get();
