@@ -1,0 +1,29 @@
+ambient_occlusion = 1
+anisotropic_filtering = 16
+audio_output = 0
+display_mode = 'fullscreen'
+draw_distance = 8
+fmv_scale = 0
+fov = 70
+fps_cap = 0
+fps_counter = true
+hdr_output = true
+height = 0
+hold_aim = true
+invert_mouse = false
+join_ip = ''
+language = 'int'
+monitor = ''
+mouse_sensitivity = 1.0
+msaa = 8
+pause_on_focus_loss = true
+reload_blur = true
+render_percent = 100
+skip_intros = false
+smaa = true
+viewmodel_fov = 70
+vsync = true
+walk_speed = 50
+width = 0
+
+[keys]

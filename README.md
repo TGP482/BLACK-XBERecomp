@@ -13,6 +13,34 @@ This port was created using the [Xbox XBE Recomp](https://github.com/TGP482/Xbox
 <img width="1920" height="1080" alt="{5852D359-24A0-48C8-9319-07C3A619E355}" src="https://github.com/user-attachments/assets/e0156eb8-c1b5-49d9-ab93-3abb46bf5f47" />
 
 
+## Running on Linux
+
+The built game is a Windows binary, but it runs on Linux through Proton, which translates D3D12 to Vulkan via vkd3d-proton. The `linux` folder contains a launcher that sets this up. No game code is changed.
+
+### Requirements
+- 64-bit Linux with a Vulkan-capable GPU driver (`vulkaninfo --summary` reports a device)
+- Steam installed, with **Proton Hotfix** downloaded (Steam > Library > enable the `Tools` filter > search `Proton Hotfix` > Install)
+- Your legally acquired game files (USA or Europe release)
+
+### Setup
+1. Get a prebuilt `BLACK.exe` with `d3dcompiler_47.dll` from the [Releases](https://github.com/TGP482/BLACK-XBERecomp/releases) page and put them in a new game folder beside an empty `assets` folder, for example `~/Games/BLACK/`.
+2. Put your game files in `assets`, either the disc ISO, or the extracted `default.xbe`, `GlobData.bin` and the game's data folders.
+3. Run:
+```
+./linux/run-proton.sh
+```
+The launcher looks for `BLACK.exe` beside the repository, in `~/Games/BLACK`, in `~/Games/BLACK-XBERecomp`, in `~/BLACK`, then shallowly under `~/Games`. Point at it explicitly with `GAME_DIR=/path/to/game ./linux/run-proton.sh` if it lives somewhere else.
+
+On first start Proton creates a Wine prefix next to the game in `compatdata`. Press F10 in-game to open the Recomp Settings overlay.
+
+### Troubleshooting
+- If the game does not start, run `./linux/debug-proton.sh`. It runs the game for 30 seconds with Proton logging enabled and prints the `vkd3d` / `d3d12` / error lines, followed by the path of the full log.
+- `nvidia-smi dmon` while the game runs (or `radeontop` on AMD) shows whether the GPU is actually used.
+- Wayland users: uncomment `PROTON_ENABLE_WAYLAND=1` in `linux/run-proton.sh` when the window misbehaves.
+- Saves from other consoles show as damaged. They are signed with that console's EEPROM key, so start a new save instead.
+
+Settings are stored in `black.toml` beside `BLACK.exe` (see `linux/black.toml.default` for an example). `./linux/install-menu-entry.sh` adds the game to your app menu with its cover art, and `./linux/install-menu-entry.sh --remove` undoes it.
+
 ## Features
 ### Display
 - **Monitor** - Picks the monitor the game shows on, for Fullscreen and Borderless (and where Windowed opens). Lists every connected monitor by its Windows number and desktop resolution.
