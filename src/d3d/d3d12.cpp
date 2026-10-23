@@ -772,6 +772,7 @@ struct DrawTextures {
     float k[4] = {1, 1, 1, 1};  // Extension::Sample's k
     float wide[4] = {};         // host texels per console texel of a target read into a smaller one, 0 otherwise
     bool blur[4] = {};          // wide for a blur between small targets
+    bool final_glow = false;   // the final glow composite, separate from reflection/reload blur
 };
 
 // a draw's shaders: what they are made from, their cache keys, the hashes Compile returned and the compiled blobs
@@ -2515,6 +2516,34 @@ bool D3D12Backend::BindStageTexturesAndTargets(const State& s, DrawTextures& sta
 }
 
 constexpr uint64_t kPixelKeySalt = 0x9E3779B97F4A7C15ull;
+constexpr uint8_t kTexGlowSmooth = 16;  // local shader variant, separate from SDK target/extension flags
+
+// Smooth only the final glow layer. Shared reflection and reload blur shaders stay intact.
+std::string GlowPixelHlsl(const PixelKey& pk) {
+    std::string source = PixelHlsl(pk);
+    if (!(pk.tex[0].flags & kTexGlowSmooth)) return source;
+    constexpr const char* call = "float4 t0 = spreadtap(";
+    size_t at = source.find(call);
+    if (at == std::string::npos || source.find(call, at + 1) != std::string::npos) {
+        LOGE("d3d12: final glow sample not found in translated shader");
+        return {};
+    }
+    source.replace(at, std::strlen(call), "float4 t0 = glowtap(");
+    return R"(
+float4 glowtap(Texture2D t, SamplerState s, float2 uv, float4 w, float m) {
+    float2 dx = ddx(uv), dy = ddy(uv);
+    const float weight[5] = {1, 4, 6, 4, 1};
+    float4 sum = 0;
+    [unroll] for (int y = -2; y <= 2; ++y)
+        [unroll] for (int x = -2; x <= 2; ++x) {
+            float4 v = t.SampleGrad(s, uv + w.xy * float2(x, y), dx, dy);
+            sum += float4(saturate(v.rgb * m), v.a) * weight[x + 2] * weight[y + 2];
+        }
+    return sum / 256;
+}
+)" + source;
+}
+
 constexpr uint64_t kNearDepthSalt = 0xC2B2AE3D27D4EB4Full;
 
 // c-38, the viewport scale; its w the plane d3d8.cpp NearDepth set, 0 without
@@ -2546,7 +2575,7 @@ void D3D12Backend::EnsurePixelShader(const PixelKey& pk, DrawShaders& sh) {
         sh.ps_code = blobs_[sh.ph].Get();
         return;
     }
-    std::string src = PixelHlsl(pk);
+    std::string src = GlowPixelHlsl(pk);
     if (sh.near_depth) src = NearDepthHlsl(std::move(src));
     sh.ps_code = Compile(src, "main", "ps_5_0", sh.ph);
     shader_src_[sh.pkey ^ kPixelKeySalt] = sh.ph;
@@ -2690,6 +2719,12 @@ void D3D12Backend::FillTexelConstants(int i, const TextureDesc& d, const DrawTex
     c.texsize[i][1] = float(d.height);
     if (!stages.rt[i]) return;
     float k = stages.k[i];
+    if (stages.info[i].flags & kTexGlowSmooth) {
+        constexpr float kExtraGlowBlur = 2.27f;
+        c.spread[i][0] = kGlowBoxTexels * kExtraGlowBlur / (4 * float(d.width) * k);
+        c.spread[i][1] = kGlowBoxTexels * kExtraGlowBlur / (4 * float(d.height) * k);
+        return;
+    }
     // a 3 console texel box per tap keeps the console chain's glow width and brightness; a blur's taps
     // are 7/6 texel apart, so each covers that much, a sample per host texel
     if (stages.wide[i] > 0) {
@@ -2853,6 +2888,10 @@ void D3D12Backend::UploadConstants(const State& s, const DrawShaders& sh, const 
     FillSurfaceConstants(s, size, c);
     FillFogConstants(s, c);
     FillCombinerConstants(s, c);
+    if (stages.final_glow) {
+        // RGB only: preserve the original alpha and the scene underneath the glow.
+        for (int i = 0; i < 3; i++) c.pc[0][i] *= 0.65f;
+    }
     if (ext_) ext_->Constants(reinterpret_cast<float(*)[4]>(vc.cpu), c.ext, bound_rt_, k.blend ? k.src : 1);
     FillTextureConstants(s, sh, stages, c);
     if (sh.fixed_transform) {
@@ -2934,7 +2973,7 @@ void D3D12Backend::CaptureShader(const char* kind, uint64_t key, const std::stri
 
 void D3D12Backend::CaptureShaders(const State& s, const Assembled& a, const DrawShaders& sh, const PixelKey& pk) {
     CaptureShader("vs", sh.vkey, VertexHlsl(s, a, sh));
-    CaptureShader("ps", sh.pkey, PixelHlsl(pk));
+    CaptureShader("ps", sh.pkey, GlowPixelHlsl(pk));
 }
 
 D3D12_SRV_DIMENSION NullViewDimension(uint8_t kind) {
@@ -3065,6 +3104,21 @@ void D3D12Backend::Draw(const State& s, uint32_t prim, uint32_t start, uint32_t 
     DrawTextures stages;
     if (!BindStageTexturesAndTargets(s, stages)) return;
     PixelKey pk = MakePixelKey(s, stages.info);
+    // The final glow is a quarter-size target added to the scene with RGB = t0 * pc0.
+    TextureDesc glow;
+    stages.final_glow = prim == 5 && count == 3 && bound_rt_ && bound_rt_->gw == guest_w_ &&
+        bound_rt_->gh == guest_h_ && !s.rs[kRsZEnable] && pk.programmable && (pk.count & 0xFF) == 1 &&
+        pk.tex_modes == 1 && !pk.alphakill && pk.rgb_in[0] == 0xC8C10000 && pk.rgb_out[0] == 0xC0 &&
+        pk.final_abcd == 0x00000C00 && pk.final_efg == 0x00001180 &&
+        SimpleState(s, kMBlendEnable) && SimpleState(s, kMSrcBlend) == 1 &&
+        SimpleState(s, kMDestBlend) == 0x302 && BlendOp(SimpleState(s, kMBlendOp)) == D3D12_BLEND_OP_ADD &&
+        stages.rt[0] && (SimpleState(s, kMPsFinalConstant0) >> 24) == 255 &&
+        !s.textures[1] && !s.textures[2] && !s.textures[3] && Describe(s.textures[0], glow) &&
+        glow.format == 0x12 && glow.width * 4 == guest_w_ && glow.height * 4 == guest_h_;
+    if (stages.final_glow) {
+        stages.info[0].flags |= kTexWide | kTexGlowSmooth;
+        pk = MakePixelKey(s, stages.info);
+    }
     sh.near_depth = NearDepth(s);
     sh.pkey = Hash(&pk, sizeof(pk)) ^ (sh.near_depth ? kNearDepthSalt : 0);
     EnsurePixelShader(pk, sh);
