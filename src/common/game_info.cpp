@@ -210,6 +210,8 @@ const app::GameInfo app::kGame = {
                 {"msaa", nullptr, &game::Opt().msaa},
                 {"smaa", &game::Opt().smaa, nullptr},
                 {"pause_on_focus_loss", &game::Opt().pause_on_focus_loss, nullptr},
+                {"texture_replacement", &game::Opt().texture_replacement, nullptr},
+                {"texture_dump", &game::Opt().texture_dump, nullptr},
                 {"draw_distance", nullptr, &game::Opt().draw_distance},
                 {"ambient_occlusion", nullptr, &game::Opt().ambient_occlusion},
                 {"viewmodel_fov", nullptr, &game::Opt().viewmodel_fov},

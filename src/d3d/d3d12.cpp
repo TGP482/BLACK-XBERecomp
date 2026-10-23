@@ -37,6 +37,7 @@
 #include "d3d/occlusion.h"
 #include "d3d/smaa_shader.h"
 #include "d3d/smaa_textures.h"
+#include "d3d/texrepl.h"
 #include "gpu/backend.h"
 #include "gpu/ext.h"
 #include "gpu/shaders.h"
@@ -707,6 +708,7 @@ struct Tex {
     uint64_t frame = 0;
     uint64_t palette = 0;  // hash of the colours a P8 texture was decoded with
     uint8_t flags = 0;  // Extension::Decoded's
+    uint64_t repl = 0;  // texrepl key of the replacement standing in for it, 0 none
 };
 
 struct PsoKey {
@@ -943,6 +945,15 @@ private:
     void UploadTexture(Tex& tx, const TextureDesc& d, const FormatInfo& fi, const uint8_t* p, const uint32_t* colours,
                        bool same);
     void UploadTextureLevel(Tex& tx, uint32_t f, uint32_t l, const std::vector<uint8_t>& px, uint32_t pitch);
+    // texture replacement (d3d/texrepl.h): true when a replacement now stands in for tx; dumps when asked to
+    bool ReplaceTexture(Tex& tx, const TextureDesc& d, const FormatInfo& fi, const uint8_t* p, uint32_t palette_va,
+                        const uint32_t* colours);
+    struct Replacement {
+        ComPtr<ID3D12Resource> res;
+        DXGI_FORMAT fmt = DXGI_FORMAT_UNKNOWN;
+        uint32_t levels = 1;
+    };
+    Replacement CreateReplacement(const texrepl::Image& img);
     void EnsurePixelShader(const PixelKey& pk, DrawShaders& sh);
     void BuildPipelineKey(const State& s, const Assembled& a, uint64_t vh, uint64_t ph, PsoKey& k);
     void KeyDepthStencil(const State& s, const Assembled& a, PsoKey& k);
@@ -1099,6 +1110,7 @@ private:
     uint32_t smp_used_ = 0;
     std::unordered_map<uint64_t, Target> targets_;
     std::unordered_map<uint64_t, Tex> textures_;  // by data address, a P8 texture's with its palette's above
+    std::unordered_map<uint64_t, Replacement> replacements_;  // by texrepl key, loaded once, kept for the run
     std::unordered_map<uint64_t, ComPtr<ID3D12PipelineState>> blit_psos_;
     Extension* ext_ = nullptr;
     // one frame capture: every draw in a text file, each target as the frame leaves it, the textures it read
@@ -2292,6 +2304,94 @@ void D3D12Backend::UploadTexture(Tex& tx, const TextureDesc& d, const FormatInfo
     Transition(tx.res.Get(), st, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
+// the replacement's own texture, every level of the file uploaded, left as a shader resource
+D3D12Backend::Replacement D3D12Backend::CreateReplacement(const texrepl::Image& img) {
+    Replacement r;
+    D3D12_HEAP_PROPERTIES hp{D3D12_HEAP_TYPE_DEFAULT};
+    D3D12_RESOURCE_DESC td = Texture2DDesc(img.format, img.width, img.height);
+    td.MipLevels = UINT16(img.levels.size());
+    if (FAILED(dev_->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                             IID_PPV_ARGS(&r.res)))) {
+        LOGW("texrepl: could not create a %ux%u texture", img.width, img.height);
+        return {};
+    }
+    for (uint32_t l = 0; l < img.levels.size(); l++) {
+        const texrepl::Image::Level& lv = img.levels[l];
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp;
+        UINT rows;
+        UINT64 row_size;
+        UINT64 bytes;
+        dev_->GetCopyableFootprints(&td, l, 1, 0, &fp, &rows, &row_size, &bytes);
+        Alloc a = Upload(bytes, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+        for (UINT y = 0; y < rows; y++) {
+            uint8_t* dst = a.cpu + size_t(y) * fp.Footprint.RowPitch;
+            if (y < lv.rows) {
+                std::memcpy(dst, &lv.data[size_t(y) * lv.pitch], std::min<size_t>(lv.pitch, size_t(row_size)));
+            } else {
+                std::memset(dst, 0, size_t(row_size));
+            }
+        }
+        fp.Offset = a.off;
+        D3D12_TEXTURE_COPY_LOCATION dl{r.res.Get(), D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX};
+        dl.SubresourceIndex = l;
+        D3D12_TEXTURE_COPY_LOCATION sl{a.res, D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT};
+        sl.PlacedFootprint = fp;
+        cl_->CopyTextureRegion(&dl, 0, 0, 0, &sl, nullptr);
+    }
+    D3D12_RESOURCE_STATES st = D3D12_RESOURCE_STATE_COPY_DEST;
+    Transition(r.res.Get(), st, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    r.fmt = img.format;
+    r.levels = uint32_t(img.levels.size());
+    return r;
+}
+
+// 2D swizzled and DXT textures only, as black-pc: linear ones are addressed in texels, cube and volume maps are left
+// alone. The key is black-pc's, over level 0 exactly as guest memory has it, so its replacements apply unchanged.
+bool D3D12Backend::ReplaceTexture(Tex& tx, const TextureDesc& d, const FormatInfo& fi, const uint8_t* p,
+                                  uint32_t palette_va, const uint32_t* colours) {
+    constexpr uint32_t kFmtP8 = 0x0B;  // D3DFMT_P8
+    bool repl = texrepl::Enabled();
+    bool dump = texrepl::DumpEnabled();
+    if ((!repl && !dump) || d.cube || d.depth > 1 || d.linear || fi.host == Host::R32F || fi.host == Host::None)
+        return false;
+    // black-pc hashes all 256 colours as they lie in memory, whatever the palette's size code
+    const void* pal = d.format == kFmtP8 && palette_va ? kernel::HostPtr(palette_va) : nullptr;
+    uint64_t k = texrepl::Key(p, LevelSize(d, 0), d.format, d.width, d.height, pal);
+    // a short palette (size code 128/64/32) is followed in memory by unrelated bytes, so the black-pc key above can
+    // change from run to run; the stable key hashes the colours as decoded, zero past the size code. Both are looked
+    // up, and dumps are named by the stable one.
+    if (pal && colours && std::memcmp(pal, colours, 256 * sizeof(uint32_t)) != 0) {
+        uint64_t ks = texrepl::Key(p, LevelSize(d, 0), d.format, d.width, d.height, colours);
+        if (!(repl && (replacements_.count(k) || texrepl::Has(k)))) k = ks;
+    }
+    if (repl) {
+        auto it = replacements_.find(k);
+        if (it == replacements_.end() && texrepl::Has(k)) {
+            texrepl::Image img;
+            Replacement r;
+            if (texrepl::Load(k, img)) r = CreateReplacement(img);
+            it = replacements_.emplace(k, std::move(r)).first;
+        }
+        if (it != replacements_.end() && it->second.res) {
+            if (tx.res != it->second.res) {
+                if (tx.res) CurrentFrame().garbage.push_back(tx.res);
+                tx.res = it->second.res;
+            }
+            tx.fmt = it->second.fmt;
+            tx.levels = it->second.levels;
+            tx.repl = k;
+            return true;
+        }
+    }
+    if (dump && texrepl::DumpWanted(k)) {
+        std::vector<uint8_t> px;
+        uint32_t pitch;
+        DecodeLevel(d, 0, 0, p, colours, px, pitch);
+        texrepl::Dump(k, d.format, fi.name, d.width, d.height, fi.compressed, fi.bits, px.data(), pitch);
+    }
+    return false;
+}
+
 void FillTextureView(const Tex& tx, const TextureDesc& d, D3D12_SHADER_RESOURCE_VIEW_DESC& sv) {
     sv.Format = tx.fmt;
     if (d.cube) {
@@ -2351,7 +2451,18 @@ ID3D12Resource* D3D12Backend::BindGuestTexture(const State& s, int stage, const 
             g_perf.texups++;
             g_perf.texup_bytes += total;
             tx.sig = sig;
-            UploadTexture(tx, d, fi, p, palette.va ? palette.colours : nullptr, same);
+            const uint32_t* colours = palette.va ? palette.colours : nullptr;
+            if (!ReplaceTexture(tx, d, fi, p, palette.va, colours)) {
+                if (tx.repl) {
+                    // replaced until its bytes changed: a texture of its own again
+                    if (!CreateTexture(tx, d, fi, key)) return nullptr;
+                    tx.frame = presents_ + 1;
+                    tx.palette = palette.hash;
+                    tx.sig = sig;
+                    same = false;
+                }
+                UploadTexture(tx, d, fi, p, colours, same);
+            }
         }
     }
     FillTextureView(tx, d, stages.sv[stage]);

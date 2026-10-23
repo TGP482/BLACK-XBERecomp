@@ -37,6 +37,8 @@ struct Options {
     bool gyro_aiming = false;  // the controller's gyro turns the view, beside the right stick
     float gyro_sensitivity = 2.0f;  // degrees the view turns a degree the controller turns
     bool menu_animations = true;  // off: menu pages and the pause menu change without sliding in and out
+    bool texture_replacement = true;  // textures/replacements/**/<key>.dds|.png beside the exe, d3d/texrepl.cpp
+    bool texture_dump = false;  // every 2D texture the game uploads, to textures/dump, keyed for replacement
     std::map<std::string, std::string> keys;  // action id to key names, absent is the default
 };
 Options& Opt();
