@@ -18,6 +18,7 @@
 #include "common/monitor.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
+#include "common/save_signature.h"
 #include "core/log.h"
 
 namespace game {
@@ -157,6 +158,7 @@ void Init() {
     BootLanguage();  // latched before the panel can change the setting
     input::LoadBindings();
     audio::SetOutputMode(Opt().audio_output);
+    save::ResignSaves();  // saves copied from an Xbox carry its signature, not the port's
 }
 
 void Save(void* table) {
