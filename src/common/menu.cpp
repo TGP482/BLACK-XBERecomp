@@ -24,6 +24,7 @@
 
 #include "app/app.h"
 #include "audio/output.h"
+#include "common/gyro.h"
 #include "common/menu.h"
 #include "common/monitor.h"
 #include "common/mouse_keyboard.h"
@@ -231,7 +232,8 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kAmbientOcclusion, kAudioOutput, kHdrOutput, kMonitor, kLanguage, kSmaa,
              kPauseOnFocusLoss, kFmvScale,
              kControllerHoldAim, kControllerSensitivity, kRumbleIntensity, kMenuAnimations,
-             kGyroAiming, kGyroSensitivity, kAimAssist };
+             kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
+             kGyroCalibrate };
 
 using rows::Kind;
 using rows::Row;
@@ -281,13 +283,19 @@ const std::vector<Row>& InputRows() {
 }
 
 constexpr Row kControllerRows[] = {
-    {Kind::Heading, -1, "CONTROLLER"},
+    {Kind::Heading, -1, "GENERAL"},
     {Kind::Value, kControllerHoldAim, "HOLD TO AIM"},
     {Kind::Value, kAimAssist, "AIM ASSIST"},
     {Kind::Value, kControllerSensitivity, "SENSITIVITY"},
     {Kind::Value, kRumbleIntensity, "RUMBLE INTENSITY"},
+    {Kind::Heading, -1, "GYRO"},
     {Kind::Value, kGyroAiming, "GYRO AIMING"},
     {Kind::Value, kGyroSensitivity, "GYRO SENSITIVITY"},
+    {Kind::Value, kGyroAxis, "GYRO AXIS"},
+    {Kind::Value, kGyroButton, "GYRO BUTTON"},
+    {Kind::Value, kGyroButtonMode, "GYRO BUTTON MODE"},
+    {Kind::Value, kGyroRecenter, "RECENTER BUTTON"},
+    {Kind::Value, kGyroCalibrate, "CALIBRATE GYRO"},
 };
 
 // the setting an ON / OFF row flips, nullptr for any other row
@@ -305,7 +313,7 @@ bool* ToggleFlag(Settings& s, int id) {
         case kInvertMouse: return &o.invert_mouse;
         case kHoldAim: return &o.hold_aim;
         case kControllerHoldAim: return &o.controller_hold_aim;
-        case kGyroAiming: return &o.gyro_aiming;
+        case kGyroAiming: return &o.gyro.enabled;
         case kAimAssist: return &o.aim_assist;
         default: return nullptr;
     }
@@ -475,6 +483,13 @@ void StepSensitivity(float& value, int step, char (&text)[64]) {
 // the setting of kLanguageNames[i]
 const char* LanguageCode(int i) { return i ? game::kLanguages[i - 1] : "auto"; }
 
+// one of names, stepped first
+template <size_t N>
+void StepName(uint32_t& value, const char* const (&names)[N], int step, char (&text)[64]) {
+    value = uint32_t(StepIndex(int(std::min<size_t>(value, N - 1)), step, int(N)));
+    std::snprintf(text, sizeof(text), "%s", names[value]);
+}
+
 // the general, mouse and keyboard and controller rows that are no ON / OFF, stepped first
 void StepInputRow(int id, int step, char (&text)[64]) {
     game::Options& o = game::Opt();
@@ -489,7 +504,23 @@ void StepInputRow(int id, int step, char (&text)[64]) {
             StepSensitivity(o.controller_sensitivity, step, text);
             break;
         case kGyroSensitivity:
-            StepSensitivity(o.gyro_sensitivity, step, text);
+            StepSensitivity(o.gyro.sensitivity, step, text);
+            break;
+        case kGyroAxis:
+            StepName(o.gyro.axis, gyro::kAxisNames, step, text);
+            break;
+        case kGyroButton:
+            StepName(o.gyro.button, gyro::kButtonNames, step, text);
+            break;
+        case kGyroButtonMode:
+            StepName(o.gyro.button_mode, gyro::kButtonModeNames, step, text);
+            break;
+        case kGyroRecenter:
+            StepName(o.gyro.recenter_button, gyro::kButtonNames, step, text);
+            break;
+        case kGyroCalibrate:
+            if (step) gyro::StartCalibration();
+            std::snprintf(text, sizeof(text), "%s", gyro::Calibrating() ? "KEEP STILL" : "START");
             break;
         case kRumbleIntensity:
             // 10% to 200% in steps of 10
@@ -557,8 +588,7 @@ void CopyControllerValues(game::Options& to, const game::Options& from) {
     to.aim_assist = from.aim_assist;
     to.controller_sensitivity = from.controller_sensitivity;
     to.rumble_intensity = from.rumble_intensity;
-    to.gyro_aiming = from.gyro_aiming;
-    to.gyro_sensitivity = from.gyro_sensitivity;
+    to.gyro = from.gyro;
 }
 
 void RestoreDefaults(int page) {
@@ -812,52 +842,7 @@ void DrawPanel() {
     ImGui::PopStyleColor(int(std::size(kPanelColors)));
 }
 
-// the game window's monitor's refresh rate, read again each second (a mode change, a move to another monitor); 0
-// when unreadable
-uint32_t RefreshRate() {
-    static uint32_t rate = 0;
-    static ULONGLONG next = 0;
-    ULONGLONG now = GetTickCount64();
-    if (now < next) return rate;
-    next = now + 1000;
-    MONITORINFOEXW mi{};
-    mi.cbSize = sizeof(mi);
-    DEVMODEW mode{};
-    mode.dmSize = sizeof(mode);
-    HMONITOR monitor = MonitorFromWindow(static_cast<HWND>(Window()), MONITOR_DEFAULTTOPRIMARY);
-    bool read = GetMonitorInfoW(monitor, &mi) && EnumDisplaySettingsW(mi.szDevice, ENUM_CURRENT_SETTINGS, &mode);
-    rate = read && mode.dmDisplayFrequency > 1 ? mode.dmDisplayFrequency : 0;
-    return rate;
-}
-
-// as app::Pace, at this cap
-void PaceAt(uint32_t cap) {
-    using clock = std::chrono::steady_clock;
-    static clock::time_point next = clock::now();
-    auto now = clock::now();
-    if (!cap) {
-        next = now;
-        return;
-    }
-    auto period = std::chrono::nanoseconds(1000000000ull / cap);
-    next += period;
-    if (next < now - period) next = now;
-    while (clock::now() + std::chrono::milliseconds(2) < next) Sleep(1);
-    while (clock::now() < next) std::this_thread::yield();
-}
-
 }  // namespace
-
-void PaceFrame() {
-    if (Get().fps_cap != kFpsCapRefresh) {
-        Pace();
-        return;
-    }
-    // a few under, so a variable refresh display stays in its range and vsync never waits a whole refresh
-    constexpr uint32_t kRefreshMargin = 3;
-    uint32_t rate = RefreshRate();
-    PaceAt(rate > kRefreshMargin ? rate - kRefreshMargin : 0);
-}
 
 const rows::Row* rows::Page(int page, size_t* count) {
     if (page == kKeyboardPage) {

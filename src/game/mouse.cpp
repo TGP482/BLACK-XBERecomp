@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstring>
 
+#include "common/gyro.h"
+#include "common/menu.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
 #include "core/log.h"
@@ -81,12 +83,12 @@ void MouseLook(X86Context& ctx, uint8_t*) {
         yaw -= dx * kDegrees;
         pitch += dy * kDegrees;
     }
-    float gyro_yaw;
-    float gyro_pitch;
-    if (input::TakeGyro(gyro_yaw, gyro_pitch)) {
+    gyro::Turn turn = gyro::Take(game::Opt().gyro);
+    if (!app::MenuOpen()) {
         bool invert = G<uint8_t>(ctx.esi + kControllerInvertY);
-        yaw += gyro_yaw;
-        pitch += invert ? -gyro_pitch : gyro_pitch;
+        yaw += turn.yaw;
+        pitch += invert ? -turn.pitch : turn.pitch;
+        if (turn.recenter) G<float>(ctx.esi + kControllerPitch) = 0.0f;  // level
     }
     if (yaw == 0.0f && pitch == 0.0f) return;
     float zoom = ViewZoom();

@@ -143,7 +143,7 @@ void Load(const void* table) {
     o.monitor = t["monitor"].value_or(o.monitor);
     o.mouse_sensitivity = float(t["mouse_sensitivity"].value_or(double(o.mouse_sensitivity)));
     o.controller_sensitivity = float(t["controller_sensitivity"].value_or(double(o.controller_sensitivity)));
-    o.gyro_sensitivity = float(t["gyro_sensitivity"].value_or(double(o.gyro_sensitivity)));
+    o.gyro.sensitivity = float(t["gyro_sensitivity"].value_or(double(o.gyro.sensitivity)));
     std::string language = t["language"].value_or(o.language);
     bool known = std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
     if (known || language == "auto") o.language = language;
@@ -165,7 +165,7 @@ void Save(void* table) {
     t.insert("monitor", o.monitor);
     t.insert("mouse_sensitivity", double(o.mouse_sensitivity));
     t.insert("controller_sensitivity", double(o.controller_sensitivity));
-    t.insert("gyro_sensitivity", double(o.gyro_sensitivity));
+    t.insert("gyro_sensitivity", double(o.gyro.sensitivity));
     t.insert("language", o.language);
     toml::table keys;
     for (const auto& [id, value] : o.keys) keys.insert(id, value);
@@ -217,7 +217,11 @@ const app::GameInfo app::kGame = {
                 {"controller_hold_aim", &game::Opt().controller_hold_aim, nullptr},
                 {"aim_assist", &game::Opt().aim_assist, nullptr},
                 {"rumble_intensity", nullptr, &game::Opt().rumble_intensity},
-                {"gyro_aiming", &game::Opt().gyro_aiming, nullptr},
+                {"gyro_aiming", &game::Opt().gyro.enabled, nullptr},
+                {"gyro_axis", nullptr, &game::Opt().gyro.axis},
+                {"gyro_button", nullptr, &game::Opt().gyro.button},
+                {"gyro_button_mode", nullptr, &game::Opt().gyro.button_mode},
+                {"gyro_recenter_button", nullptr, &game::Opt().gyro.recenter_button},
                 {"menu_animations", &game::Opt().menu_animations, nullptr}},
     .load = game::Load,
     .save = game::Save,

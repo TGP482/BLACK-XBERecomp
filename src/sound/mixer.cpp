@@ -413,6 +413,8 @@ void MixVoice(Voice& v, float* out, float* send, uint32_t frames) {
         float s[kRows];
         bool more = v.stream ? StreamFrame(v, s) : BufferFrame(v, region, s);
         if (!more) break;
+        // before the ears, the bins and the reverb send, as the voice processor does
+        v.filter.Run(s, v.channels);
         s[kDry] = s[0];
         if (ears) {
             v.itd += itd_step;
@@ -478,12 +480,27 @@ constexpr uint32_t kWfxBits = 14;
 
 void ReadFormat(Voice& v, uint32_t wfx) {
     if (!wfx) return;
+    v.filter.Reset();
     v.tag = R16(wfx);
     v.channels = std::max<uint16_t>(R16(wfx + kWfxChannels), 1);
     v.rate = R32(wfx + kWfxRate);
     v.align = std::max<uint16_t>(R16(wfx + kWfxBlockAlign), 1);
     v.bits = R16(wfx + kWfxBits);
     if (v.tag != kFormatPcm && v.tag != kFormatXboxAdpcm) LOG_FIRST(8, "dsound: format tag %X not supported", v.tag);
+}
+
+// DSFILTERDESC: mode, PEQ Q, four coefficients. Null resends the last one (XDK 0x21F205), so nothing changes
+constexpr uint32_t kFilterDescMode = 0;
+constexpr uint32_t kFilterDescCoefficients = 8;
+
+uint32_t SetFilter(Voice& v, uint32_t desc) {
+    if (!desc) return 0;
+    uint32_t mode = R32(desc + kFilterDescMode) & 3;
+    uint32_t coefficients[4];
+    for (int i = 0; i < 4; i++) coefficients[i] = R32(desc + kFilterDescCoefficients + i * 4);
+    bool applied = v.filter.Set(mode, coefficients, v.is3d, v.channels);
+    if (!applied) LOG_FIRST(8, "dsound: filter mode %u not supported", mode);
+    return 0;
 }
 
 // DSMIXBINS: count, then a pointer to (bin, volume) pairs of 8 bytes

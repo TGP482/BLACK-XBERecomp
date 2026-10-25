@@ -13,8 +13,6 @@ void ReleaseCursor();            // the game lost the input: the clip goes, held
 void Keyboard(Pad& pad);         // held keys onto port 0's pad
 // raw mouse counts since the last call, scaled by the settings; false when there are none
 bool TakeMouse(float& dx, float& dy);
-// degrees the controller's gyro turned since the last call, yaw left and pitch down positive; gyro.cpp
-bool TakeGyro(float& yaw, float& pitch);
 
 // actions the keyboard and mouse can be bound to, key names comma separated
 // letter, digit and symbol keys bind by position as the US key there; Binding and ButtonKey show the player's labels

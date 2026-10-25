@@ -251,8 +251,11 @@ bool Entries(X86Context& ctx, uint32_t root, uint32_t holder) {
     return true;
 }
 
-// the settings' categories, each a row
-bool Listing(const Page& p) { return p.mode == kSettingsMode && !g_group; }
+// every page shows a list of its categories first
+bool Grouped(int mode) { return mode != 0; }
+
+// a grouped page's categories, each a row
+bool Listing(const Page& p) { return Grouped(p.mode) && !g_group; }
 
 // the rows of the page's mode
 void Fill(Page& p) {
@@ -266,7 +269,8 @@ void Fill(Page& p) {
         if (g_group && heading) inside = &list[i] == g_group;
         if (heading == listing && inside) p.rows.push_back(&list[i]);
     }
-    if (p.mode > kSettingsMode) p.rows.push_back(nullptr);
+    bool defaults = !Grouped(p.mode) || listing;
+    if (p.mode > kSettingsMode && defaults) p.rows.push_back(nullptr);
     p.slots = std::min(p.slots, p.rows.size());
     p.top = 0;
 }
@@ -428,10 +432,10 @@ void Build(X86Context& ctx, const Host& host, uint32_t root, uint32_t holder, ui
     g_next = 0;
     // back from a category is its list
     const Row* back = nullptr;
-    if (!p.mode && g_last == kSettingsMode && g_group) {
+    if (!p.mode && Grouped(g_last) && g_group) {
         back = g_group;
         g_group = nullptr;
-        p.mode = kSettingsMode;
+        p.mode = g_last;
     }
     p.failed = !(p.mode ? Rows(ctx, root, holder, menu) : Entries(ctx, root, holder));
     const char* shown = p.mode ? kCaptions[p.mode - 1] : "buttons";
@@ -492,7 +496,7 @@ void ApplyRowInput(size_t slot, uint32_t id, bool locked) {
         if (!locked) app::rows::Value(*row, id == kInputLeft ? -1 : 1);
     } else if (id == kInputConfirm && row && row->kind == app::rows::Kind::Heading) {
         g_group = row;
-        g_next = kSettingsMode;
+        g_next = p.mode;
     } else if (id == kInputConfirm && row) {
         p.capture = 1;
         p.bind = p.top + slot;
