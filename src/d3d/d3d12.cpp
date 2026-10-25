@@ -13,6 +13,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -120,7 +121,7 @@ bool CaptureOn() {
 }
 
 const char* kBlitHlsl = R"(
-cbuffer B : register(b1) { float4 uvrect; float4 opts; };
+cbuffer B : register(b1) { float4 uvrect; float4 opts; float4 colour[3]; };
 Texture2D img : register(t0);
 Texture2D lut : register(t1);
 SamplerState ls : register(s0);
@@ -142,6 +143,11 @@ float4 psmain(O i) : SV_Target {
     c /= n * n;
     c.rgb *= opts.w;
     if (opts.x > 0) c.rgb = float3(lut.Sample(ps, float2(c.r, 0.5)).r, lut.Sample(ps, float2(c.g, 0.5)).g, lut.Sample(ps, float2(c.b, 0.5)).b);
+    // colour[0].w: the rows hold a colour matrix, applied to linear colour
+    if (colour[0].w > 0) {
+        float3x3 m = float3x3(colour[0].xyz, colour[1].xyz, colour[2].xyz);
+        c.rgb = pow(saturate(mul(m, pow(saturate(c.rgb), 2.2))), 1 / 2.2);
+    }
     return float4(c.rgb, opts.y > 0 ? c.a : 1);
 }
 )";
@@ -752,6 +758,7 @@ struct BlitOptions {
     DXGI_FORMAT rtv = kBgra;  // the target's format
     bool over = false;        // premultiplied over the target, which keeps its alpha
     uint32_t samples = 1;     // the target's
+    const float* colour = nullptr;  // 3x3 colour matrix by rows, nullptr leaves colours alone
 };
 
 // Shrink's settings past the source and the size
@@ -1896,8 +1903,12 @@ void D3D12Backend::Blit(ID3D12Resource* src, DXGI_FORMAT fmt, const float uvrect
     dev_->CreateShaderResourceView(lut_.Get(), &sv, Cpu(srv_heap_.Get(), slot + 1, srv_inc_));
     uint32_t si = EnsureBlitSamplers();
     Alloc cb = Upload(256, 256);
-    float c[8] = {uvrect[0], uvrect[1], uvrect[2], uvrect[3],
-                  o.gamma ? 1.0f : 0.0f, o.alpha ? 1.0f : 0.0f, float(o.taps), o.mul};
+    float c[20] = {uvrect[0], uvrect[1], uvrect[2], uvrect[3],
+                   o.gamma ? 1.0f : 0.0f, o.alpha ? 1.0f : 0.0f, float(o.taps), o.mul};
+    if (o.colour) {
+        for (int row = 0; row < 3; row++) std::memcpy(c + 8 + row * 4, o.colour + row * 3, 3 * sizeof(float));
+        c[11] = 1.0f;
+    }
     std::memcpy(cb.cpu, c, sizeof(c));
     DrawFullScreen(EnsureBlitPipeline(o.rtv, o.over, o.samples), cb.gpu, slot, si);
 }
@@ -3594,6 +3605,34 @@ void D3D12Backend::DrawHdrFrame(Target* t, ID3D12Resource* r, D3D12_CPU_DESCRIPT
     Pass(kHdrHlsl, "hdr10", kHdr10Format, bb, bb_w_, bb_h_, src, fmt, p, -1);
 }
 
+// Colour blind modes: Machado 2009 simulation at full severity, then Fidaner's daltonize, which moves the difference
+// the eye loses into channels it still sees. Rows of protanopia, deuteranopia, tritanopia.
+constexpr float kColourBlindSimulate[3][9] = {
+    {0.152286f, 1.052583f, -0.204868f, 0.114503f, 0.786281f, 0.099216f, -0.003882f, -0.048116f, 1.051998f},
+    {0.367322f, 0.860646f, -0.227968f, 0.280085f, 0.672501f, 0.047413f, -0.011820f, 0.042940f, 0.968881f},
+    {1.255528f, -0.076749f, -0.178779f, -0.078411f, 0.930809f, 0.147602f, 0.004733f, 0.691367f, 0.303900f},
+};
+constexpr float kColourBlindShift[3][9] = {
+    {0, 0, 0, 0.7f, 1, 0, 0.7f, 0, 1},
+    {0, 0, 0, 0.7f, 1, 0, 0.7f, 0, 1},
+    {1, 0, 0.7f, 0, 1, 0.7f, 0, 0, 0},
+};
+
+// mode 1 to 3: identity + shift * (identity - simulate)
+std::array<float, 9> ColourBlindMatrix(uint32_t mode) {
+    const float* sim = kColourBlindSimulate[mode - 1];
+    const float* shift = kColourBlindShift[mode - 1];
+    std::array<float, 9> m{};
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 3; c++) {
+            float lost = 0;
+            for (int k = 0; k < 3; k++) lost += shift[r * 3 + k] * (float(k == c) - sim[k * 3 + c]);
+            m[r * 3 + c] = float(r == c) + lost;
+        }
+    }
+    return m;
+}
+
 // the frame letterboxed to the game's aspect into the bound target
 void D3D12Backend::BlitFrame(Target& t, ID3D12Resource* r, DXGI_FORMAT rtv) {
     float aspect = game::Aspect();
@@ -3606,7 +3645,9 @@ void D3D12Backend::BlitFrame(Target& t, ID3D12Resource* r, DXGI_FORMAT rtv) {
     D3D12_RECT scissor{0, 0, LONG(bb_w_), LONG(bb_h_)};
     cl_->RSSetViewports(1, &vp);
     cl_->RSSetScissorRects(1, &scissor);
-    if (r) Blit(r, t.fmt, uv, {.gamma = gamma_, .rtv = rtv});
+    uint32_t mode = std::min(game::Opt().colour_blind, 3u);
+    std::array<float, 9> colour = mode ? ColourBlindMatrix(mode) : std::array<float, 9>{};
+    if (r) Blit(r, t.fmt, uv, {.gamma = gamma_, .rtv = rtv, .colour = mode ? colour.data() : nullptr});
 }
 
 void D3D12Backend::RenderUi() {

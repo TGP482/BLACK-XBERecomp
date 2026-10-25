@@ -17,6 +17,7 @@ struct Options {
     bool skip_intros = false;  // logos at boot and the film after pressing start
     bool fps_counter = false;
     uint32_t fmv_scale = 0;  // 4:3 films on a wider screen: 0 fill it, top and bottom cut; 1 kept 4:3
+    uint32_t colour_blind = 0;  // 0 off, 1 protanopia, 2 deuteranopia, 3 tritanopia
     bool hdr_output = true;  // HDR10 on a display with Windows HDR on
     bool reload_blur = true;
     uint32_t ambient_occlusion = 0;  // screen space, from the scene's depth: 0 off, 1 SSAO, 2 GTAO

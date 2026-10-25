@@ -202,6 +202,7 @@ const app::GameInfo app::kGame = {
                 {"fps_counter", &game::Opt().fps_counter, nullptr},
                 {"reload_blur", &game::Opt().reload_blur, nullptr},
                 {"fmv_scale", nullptr, &game::Opt().fmv_scale},
+                {"colour_blind", nullptr, &game::Opt().colour_blind},
                 {"hdr_output", &game::Opt().hdr_output, nullptr},
                 {"invert_mouse", &game::Opt().invert_mouse, nullptr},
                 {"hold_aim", &game::Opt().hold_aim, nullptr},
