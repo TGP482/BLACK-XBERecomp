@@ -239,7 +239,7 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
              kGyroCalibrate, kColourBlind, kSensitivityVertical, kAimHorizontal, kAimVertical, kInvertMouseX,
              kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX, kTextureReplacement,
-             kTextureDumping, kDumpFormat };
+             kTextureDumping, kDumpFormat, kDeadZone };
 
 using rows::Kind;
 using rows::Row;
@@ -306,6 +306,7 @@ constexpr Row kControllerRows[] = {
     {Kind::Value, kPadAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
     {Kind::Value, kPadAimVertical, "AIM VERTICAL SENSITIVITY"},
     {Kind::Value, kInvertPadX, "INVERT X AXIS"},
+    {Kind::Value, kDeadZone, "DEADZONE"},
     {Kind::Value, kRumbleIntensity, "RUMBLE INTENSITY"},
     {Kind::Heading, -1, "GYRO"},
     {Kind::Value, kGyroAiming, "GYRO AIMING"},
@@ -547,6 +548,17 @@ void StepInputRow(int id, int step, char (&text)[64]) {
         return;
     }
     switch (id) {
+        case kDeadZone: {
+            float zone = o.controller_dead_zone > 0.0f ? o.controller_dead_zone : game::kGameDeadZone;
+            // 0.1 to 1.0 in steps of 0.1
+            if (step) o.controller_dead_zone = float(StepRange(int(std::lround(zone * 10.0f)), 1, 10, 1, step)) / 10.0f;
+            if (o.controller_dead_zone == 0.0f) {
+                std::snprintf(text, sizeof(text), "%.1f (DEFAULT)", game::kGameDeadZone);
+            } else {
+                std::snprintf(text, sizeof(text), "%.1f", o.controller_dead_zone);
+            }
+            break;
+        }
         case kAudioOutput:
             std::snprintf(text, sizeof(text), "%s", kAudioOutputNames[StepTable(kAudioOutputs, o.audio_output, step)]);
             break;
@@ -639,6 +651,7 @@ void CopyControllerValues(game::Options& to, const game::Options& from) {
     to.controller_aim_horizontal_sensitivity = from.controller_aim_horizontal_sensitivity;
     to.controller_aim_vertical_sensitivity = from.controller_aim_vertical_sensitivity;
     to.invert_controller_x = from.invert_controller_x;
+    to.controller_dead_zone = from.controller_dead_zone;
     to.rumble_intensity = from.rumble_intensity;
     to.gyro = from.gyro;
 }

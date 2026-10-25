@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <iterator>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -114,11 +115,28 @@ void UpdateTriggerRest(int port, input::Pad& pad) {
 }
 
 // port 0 has the keyboard; the game sees no input while the panel is open
+constexpr float kStickMax = 32767.0f;
+
+// The game drops a stick axis inside its own dead zone: the axis is moved so that zone starts where the chosen
+// one does, the identity at the game's own
+int16_t MoveDeadZone(int16_t value, float zone) {
+    float v = std::min(std::fabs(float(value)) / kStickMax, 1.0f);
+    if (v <= zone) return 0;
+    float out = (kGameDeadZone + (v - zone) / (1.0f - zone) * (1.0f - kGameDeadZone)) * kStickMax;
+    return int16_t(std::lround(value < 0 ? -out : out));
+}
+
+void ApplyDeadZone(input::Pad& pad, float zone) {
+    if (zone <= 0.0f || zone == kGameDeadZone) return;
+    for (int16_t* axis : {&pad.lx, &pad.ly, &pad.rx, &pad.ry}) *axis = MoveDeadZone(*axis, zone);
+}
+
 void Pad(int port, input::Pad& pad) {
     UpdateTriggerRest(port, pad);
     input::SeenPad(pad);
     if (port == 0) pad.connected = true;
     if (Opt().invert_controller_x) pad.rx = int16_t(-1 - pad.rx);  // not plain negation: -32768 has no positive
+    ApplyDeadZone(pad, Opt().controller_dead_zone);
     if (app::MenuOpen()) pad = input::Pad{.connected = pad.connected};
     else if (port == 0) input::Keyboard(pad);
 }
@@ -166,6 +184,7 @@ void Load(const void* table) {
         ReadFloat(t, "controller_aim_horizontal_sensitivity", o.controller_aim_horizontal_sensitivity);
     o.controller_aim_vertical_sensitivity =
         ReadFloat(t, "controller_aim_vertical_sensitivity", o.controller_aim_vertical_sensitivity);
+    o.controller_dead_zone = ReadFloat(t, "controller_dead_zone", o.controller_dead_zone);
     o.gyro.sensitivity = float(t["gyro_sensitivity"].value_or(double(o.gyro.sensitivity)));
     std::string language = t["language"].value_or(o.language);
     bool known = std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
@@ -195,6 +214,7 @@ void Save(void* table) {
     t.insert("controller_vertical_sensitivity", double(o.controller_vertical_sensitivity));
     t.insert("controller_aim_horizontal_sensitivity", double(o.controller_aim_horizontal_sensitivity));
     t.insert("controller_aim_vertical_sensitivity", double(o.controller_aim_vertical_sensitivity));
+    t.insert("controller_dead_zone", double(o.controller_dead_zone));
     t.insert("gyro_sensitivity", double(o.gyro.sensitivity));
     t.insert("language", o.language);
     toml::table keys;

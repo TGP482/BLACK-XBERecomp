@@ -123,6 +123,7 @@ constexpr Entry kEntries[] = {
     // CONTROLLER rows
     {"HORIZONTAL SENSITIVITY", {u"Sensibilité horizontale", u"Horizontale Empfindlichkeit", u"Sensibilità orizzontale", u"Sensibilidad horizontal"}},
     {"VERTICAL SENSITIVITY", {u"Sensibilité verticale", u"Vertikale Empfindlichkeit", u"Sensibilità verticale", u"Sensibilidad vertical"}},
+    {"DEADZONE", {u"Zone morte", u"Totzone", u"Zona morta", u"Zona muerta"}},
     {"RUMBLE INTENSITY", {u"Intensité des vibrations", u"Vibrationsstärke", u"Intensità della vibrazione", u"Intensidad de la vibración"}},
     {"AIM ASSIST", {u"Aide à la visée", u"Zielhilfe", u"Mira assistita", u"Asistencia de apuntado"}},
     {"GYRO", {u"Gyroscope", u"Gyroskop", u"Giroscopio", u"Giroscopio"}},

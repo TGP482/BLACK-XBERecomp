@@ -12,6 +12,7 @@ namespace game {
 // the languages, saved by these codes: English, French, German, Italian, Spanish
 inline constexpr const char* kLanguages[] = {"int", "fra", "deu", "ita", "esp"};
 
+inline constexpr float kGameDeadZone = 0.2f;  // each stick axis: pad+0xCC, set at 0xC2857
 inline constexpr bool kCustomTexturesDefault = false;  // texture replacement, on in the SDK's settings
 
 struct Options {
@@ -46,6 +47,7 @@ struct Options {
     float controller_aim_horizontal_sensitivity = 1.0f;  // times the stick's while the view is zoomed in
     float controller_aim_vertical_sensitivity = 1.0f;
     bool invert_controller_x = false;  // the Y axis is the game's own invert look
+    float controller_dead_zone = 0.0f;  // 0 the game's own kGameDeadZone
     uint32_t rumble_intensity = 100;  // percent of the game's vibration
     gyro::Settings gyro;  // the controller's gyro turns the view, beside the right stick
     bool menu_animations = true;  // off: menu pages and the pause menu change without sliding in and out
