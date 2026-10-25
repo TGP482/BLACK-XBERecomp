@@ -12,6 +12,8 @@ namespace game {
 // the languages, saved by these codes: English, French, German, Italian, Spanish
 inline constexpr const char* kLanguages[] = {"int", "fra", "deu", "ita", "esp"};
 
+inline constexpr bool kCustomTexturesDefault = false;  // texture replacement, on in the SDK's settings
+
 struct Options {
     std::string monitor;  // its device name, \\.\DISPLAY2; empty the primary
     bool skip_intros = false;  // logos at boot and the film after pressing start

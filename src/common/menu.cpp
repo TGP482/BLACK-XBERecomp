@@ -71,6 +71,8 @@ constexpr uint32_t kFmvScales[] = {0, 1};
 const char* const kFmvScaleNames[] = {"FILL", "4:3"};
 constexpr uint32_t kColourBlindModes[] = {0, 1, 2, 3};
 const char* const kColourBlindNames[] = {"OFF", "PROTANOPIA", "DEUTERANOPIA", "TRITANOPIA"};
+constexpr uint32_t kDumpFormats[] = {0, 1};
+const char* const kDumpFormatNames[] = {"PNG", "DDS"};
 constexpr uint32_t kAudioOutputs[] = {audio::kOutputAuto, audio::kOutputMono, audio::kOutputStereo,
                                       audio::kOutputSurround};
 const char* const kAudioOutputNames[] = {"AUTOMATIC", "MONO", "2.0 STEREO", "5.1 SURROUND"};
@@ -236,7 +238,8 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kControllerHoldAim, kControllerSensitivity, kRumbleIntensity, kMenuAnimations,
              kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
              kGyroCalibrate, kColourBlind, kSensitivityVertical, kAimHorizontal, kAimVertical, kInvertMouseX,
-             kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX };
+             kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX, kTextureReplacement,
+             kTextureDumping, kDumpFormat };
 
 using rows::Kind;
 using rows::Row;
@@ -268,6 +271,10 @@ constexpr Row kSettingsRows[] = {
     {Kind::Value, kPauseOnFocusLoss, "PAUSE ON FOCUS LOSS"},
     {Kind::Value, kLanguage, "LANGUAGE"},
     {Kind::Value, kAudioOutput, "AUDIO OUTPUT"},
+    {Kind::Heading, -1, "TEXTURES"},
+    {Kind::Value, kTextureReplacement, "TEXTURE REPLACEMENT"},
+    {Kind::Value, kTextureDumping, "TEXTURE DUMPING"},
+    {Kind::Value, kDumpFormat, "DUMP FORMAT"},
 };
 
 const std::vector<Row>& InputRows() {
@@ -294,8 +301,8 @@ constexpr Row kControllerRows[] = {
     {Kind::Heading, -1, "GENERAL"},
     {Kind::Value, kControllerHoldAim, "HOLD TO AIM"},
     {Kind::Value, kAimAssist, "AIM ASSIST"},
-    {Kind::Value, kControllerSensitivity, "CONTROLLER HORIZONTAL SENSITIVITY"},
-    {Kind::Value, kControllerVertical, "CONTROLLER VERTICAL SENSITIVITY"},
+    {Kind::Value, kControllerSensitivity, "HORIZONTAL SENSITIVITY"},
+    {Kind::Value, kControllerVertical, "VERTICAL SENSITIVITY"},
     {Kind::Value, kPadAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
     {Kind::Value, kPadAimVertical, "AIM VERTICAL SENSITIVITY"},
     {Kind::Value, kInvertPadX, "INVERT X AXIS"},
@@ -324,6 +331,8 @@ bool* ToggleFlag(Settings& s, int id) {
         case kPauseOnFocusLoss: return &o.pause_on_focus_loss;
         case kInvertMouse: return &o.invert_mouse;
         case kInvertMouseX: return &o.invert_mouse_x;
+        case kTextureReplacement: return &s.custom_textures;
+        case kTextureDumping: return &s.dump_textures;
         case kInvertPadX: return &o.invert_controller_x;
         case kHoldAim: return &o.hold_aim;
         case kControllerHoldAim: return &o.controller_hold_aim;
@@ -447,6 +456,11 @@ bool StepDisplayRow(int id, int step, Settings& s, char (&text)[64]) {
         case kColourBlind: {
             int mode = StepTable(kColourBlindModes, o.colour_blind, step);
             std::snprintf(text, sizeof(text), "%s", kColourBlindNames[mode]);
+            return true;
+        }
+        case kDumpFormat: {
+            int format = StepTable(kDumpFormats, s.texture_dump_format, step);
+            std::snprintf(text, sizeof(text), "%s", kDumpFormatNames[format]);
             return true;
         }
         case kFov:
@@ -643,6 +657,7 @@ void RestoreDefaults(int page) {
     }
     game::Options keep = o;
     Get() = Settings{};
+    Get().custom_textures = game::kCustomTexturesDefault;
     o = game::Options{};
     CopyKeyboardValues(o, keep);
     CopyControllerValues(o, keep);
@@ -911,6 +926,11 @@ bool rows::Enabled(const Row& row) { return row.kind != Kind::Value || !Greyed(r
 bool MenuOpen() { return g_open.load(std::memory_order_relaxed); }
 
 bool Capturing() { return g_capture >= 0; }
+
+void ToggleTextureReplacement() {
+    Get().custom_textures = !Get().custom_textures;
+    Changed(false);
+}
 
 void ToggleMenu() {
     bool open = !MenuOpen();

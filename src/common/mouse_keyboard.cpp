@@ -92,6 +92,7 @@ constexpr Target kActions[] = {
     {{"back", "OBJECTIVES", "Tab"}, 13},
     {{"pause", "PAUSE MENU", "Escape"}, 12},
     {{"hide_hud", "TOGGLE HUD", ""}, kHostKey},
+    {{"toggle_textures", "TOGGLE TEXTURE REPLACEMENT", ""}, kHostKey},
     {{"settings_panel", "SETTINGS PANEL", "F10"}, kHostKey},
     {{"look_up", "LOOK UP", "Up"}, 20},
     {{"look_down", "LOOK DOWN", "Down"}, 21},
@@ -106,6 +107,7 @@ constexpr size_t HostAction(std::string_view id) {
 }
 constexpr size_t kHudAction = HostAction("hide_hud");
 constexpr size_t kPanelAction = HostAction("settings_panel");
+constexpr size_t kTexturesAction = HostAction("toggle_textures");
 struct Name {
     int vk;
     const char* name;
@@ -555,5 +557,6 @@ int PressedKey() {
 
 bool PanelKey(int vk) { return HostKeyBound(kPanelAction, vk); }
 bool HudKey(int vk) { return HostKeyBound(kHudAction, vk); }
+bool TexturesKey(int vk) { return HostKeyBound(kTexturesAction, vk); }
 
 }  // namespace input

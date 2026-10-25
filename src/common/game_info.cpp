@@ -57,6 +57,11 @@ bool Message(void* hwnd, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* resu
                 *result = 0;
                 return true;
             }
+            if (!(lp & kKeyWasDown) && !MenuOpen() && input::TexturesKey(int(wp))) {
+                ToggleTextureReplacement();
+                *result = 0;
+                return true;
+            }
             if (msg == WM_KEYDOWN && wp == VK_ESCAPE && MenuOpen() && !Capturing()) ToggleMenu();
             break;
         case WM_SYSCOMMAND:
@@ -141,10 +146,14 @@ float ReadFloat(const toml::table& t, const char* key, float fallback) {
     return float(t[key].value_or(double(fallback)));
 }
 
+bool g_settings_read = false;  // Load ran: there was a settings file
+
 // what the options list cannot hold
 void Load(const void* table) {
     const toml::table& t = *static_cast<const toml::table*>(table);
     Options& o = Opt();
+    g_settings_read = true;
+    app::Get().custom_textures = t["custom_textures"].value_or(kCustomTexturesDefault);
     o.monitor = t["monitor"].value_or(o.monitor);
     o.mouse_sensitivity = ReadFloat(t, "mouse_sensitivity", o.mouse_sensitivity);
     // absent in files from before the split: the one sensitivity they had
@@ -168,6 +177,7 @@ void Load(const void* table) {
 
 // after the settings load, before boot
 void Init() {
+    if (!g_settings_read) app::Get().custom_textures = kCustomTexturesDefault;
     BootLanguage();  // latched before the panel can change the setting
     input::LoadBindings();
     audio::SetOutputMode(Opt().audio_output);
