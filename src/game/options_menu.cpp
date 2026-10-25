@@ -52,6 +52,7 @@ constexpr int kBarTick = 7;
 constexpr int kBarScan = 11;
 constexpr float kBarLeft = -5.0f;  // the box's left end and the left tick
 constexpr float kTickGap = 10.0f;  // past the end of the widest value
+constexpr float kNameGap = 12.0f;  // between the widest name and the values
 
 // the rows' font, as the name entry's caret measures it
 constexpr uint32_t kFindFont = 0x13CD0;   // stdcall (game object, name): a font
@@ -126,6 +127,7 @@ struct Page {
     uint32_t value[kSlots] = {};
     size_t slots = 0;
     size_t top = 0;
+    float value_x = 0;  // the values' column, past the widest name
     std::vector<const Row*> rows;  // null restores the defaults
     int capture = 0;  // a key binding: 1 the keys come up, 2 the next key binds or Escape leaves, 3 they come up again
     size_t bind = 0;  // its row
@@ -197,7 +199,7 @@ void Follow(const Page& p) {
     for (int i = 0; i < kPrompts; i++) follow(p.prompt[i], h.prompt_x[i], h.prompt_y);
     for (int i = 0; i < kSlots; i++) {
         follow(p.name[i], h.name_x, h.pitch * float(i));
-        follow(p.value[i], h.value_x, h.pitch * float(i));
+        follow(p.value[i], p.value_x, h.pitch * float(i));
     }
 }
 
@@ -275,6 +277,8 @@ void Fill(Page& p) {
     p.top = 0;
 }
 
+float ValueColumn(X86Context& ctx, const Page& p);
+
 // the panel's rows in place of the stock buttons
 bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
     Page& p = g_page;
@@ -299,6 +303,7 @@ bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
         if (!Show(ctx, kName + int(i), p.name[i]) || !Show(ctx, kValue + int(i), p.value[i])) return false;
     }
     p.first = p.name[0];
+    p.value_x = ValueColumn(ctx, p);
     Follow(p);
     CallGuest(ctx, flash::kRunActions, {R32(flash::kPlayer)});
     for (size_t i = 0; i < p.slots; i++) {
@@ -319,6 +324,8 @@ bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
     Focus(ctx, p.name[0]);
     return true;
 }
+
+std::string NameText(const Row* row) { return app::Ui(row ? row->label : "RESTORE DEFAULTS"); }
 
 // what row i of the page shows as its value
 std::string ValueText(const Page& p, size_t i) {
@@ -372,6 +379,16 @@ float Measure(uint32_t font, const std::string& text) {
     return G<float>(font + kFontScale) * end;
 }
 
+// the stock column, further right when a name would run into it
+float ValueColumn(X86Context& ctx, const Page& p) {
+    const Host& h = *p.host;
+    uint32_t font = CallGuest(ctx, kFindFont, {R32(kGame), kFontName});
+    float widest = 0.0f;
+    for (const Row* row : p.rows) widest = std::max(widest, Measure(font, NameText(row)));
+    float name_end = h.name_x + (kTextLeft + widest * kTextHeight) * h.scale;
+    return std::max(h.value_x, name_end + kNameGap);
+}
+
 // how far right of the focused name the widest value of the page ends, the label clip scaled as it lights
 float Reach(X86Context& ctx, const Page& p, uint32_t focus) {
     const Host& h = *p.host;
@@ -383,7 +400,7 @@ float Reach(X86Context& ctx, const Page& p, uint32_t focus) {
     shown.capture = 0;
     float widest = 0.0f;
     for (size_t i = 0; i < p.rows.size(); i++) widest = std::max(widest, Measure(font, ValueText(shown, i)));
-    return h.value_x - h.name_x + (kTextLeft + widest * kTextHeight) * scale + kTickGap;
+    return p.value_x - h.name_x + (kTextLeft + widest * kTextHeight) * scale + kTickGap;
 }
 
 // the bar on the focused row reaches past the values, its ends and line as stock
@@ -527,7 +544,7 @@ void UpdateTexts(const Page& p) {
     Write(g_fields[kTitle], app::Ui(g_group ? g_group->label : kCaptions[p.mode - 1]));
     for (size_t i = 0; i < p.slots; i++) {
         const Row* row = p.rows[p.top + i];
-        Write(g_fields[kName + i], app::Ui(row ? row->label : "RESTORE DEFAULTS"));
+        Write(g_fields[kName + i], NameText(row));
         Write(g_fields[kValue + i], ValueText(p, p.top + i));
         uint32_t from = flash::FirstChild(p.name[i]);
         uint32_t to = flash::FirstChild(p.value[i]);

@@ -371,8 +371,8 @@ bool TakeMouse(float& dx, float& dy) {
     int y = g_dy.exchange(0);
     if ((!x && !y) || stale || !Active()) return false;
     const game::Options& o = game::Opt();
-    dx = float(x) * o.mouse_sensitivity;
-    dy = float(o.invert_mouse ? -y : y) * o.mouse_sensitivity;
+    dx = float(o.invert_mouse_x ? -x : x) * o.mouse_sensitivity;
+    dy = float(o.invert_mouse ? -y : y) * o.mouse_vertical_sensitivity;
     return true;
 }
 

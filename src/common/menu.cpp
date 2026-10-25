@@ -235,7 +235,8 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kPauseOnFocusLoss, kFmvScale,
              kControllerHoldAim, kControllerSensitivity, kRumbleIntensity, kMenuAnimations,
              kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
-             kGyroCalibrate, kColourBlind };
+             kGyroCalibrate, kColourBlind, kSensitivityVertical, kAimHorizontal, kAimVertical, kInvertMouseX,
+             kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX };
 
 using rows::Kind;
 using rows::Row;
@@ -272,8 +273,12 @@ constexpr Row kSettingsRows[] = {
 const std::vector<Row>& InputRows() {
     static const std::vector<Row> list = [] {
         std::vector<Row> out = {{Kind::Heading, -1, "MOUSE"},
-                                {Kind::Value, kSensitivity, "MOUSE SENSITIVITY"},
-                                {Kind::Value, kInvertMouse, "INVERT LOOK"},
+                                {Kind::Value, kSensitivity, "MOUSE HORIZONTAL SENSITIVITY"},
+                                {Kind::Value, kSensitivityVertical, "MOUSE VERTICAL SENSITIVITY"},
+                                {Kind::Value, kAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
+                                {Kind::Value, kAimVertical, "AIM VERTICAL SENSITIVITY"},
+                                {Kind::Value, kInvertMouseX, "INVERT X AXIS"},
+                                {Kind::Value, kInvertMouse, "INVERT Y AXIS"},
                                 {Kind::Value, kHoldAim, "HOLD TO AIM"},
                                 {Kind::Heading, -1, "KEYBOARD"}};
         size_t count = 0;
@@ -289,7 +294,11 @@ constexpr Row kControllerRows[] = {
     {Kind::Heading, -1, "GENERAL"},
     {Kind::Value, kControllerHoldAim, "HOLD TO AIM"},
     {Kind::Value, kAimAssist, "AIM ASSIST"},
-    {Kind::Value, kControllerSensitivity, "SENSITIVITY"},
+    {Kind::Value, kControllerSensitivity, "CONTROLLER HORIZONTAL SENSITIVITY"},
+    {Kind::Value, kControllerVertical, "CONTROLLER VERTICAL SENSITIVITY"},
+    {Kind::Value, kPadAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
+    {Kind::Value, kPadAimVertical, "AIM VERTICAL SENSITIVITY"},
+    {Kind::Value, kInvertPadX, "INVERT X AXIS"},
     {Kind::Value, kRumbleIntensity, "RUMBLE INTENSITY"},
     {Kind::Heading, -1, "GYRO"},
     {Kind::Value, kGyroAiming, "GYRO AIMING"},
@@ -314,6 +323,8 @@ bool* ToggleFlag(Settings& s, int id) {
         case kMenuAnimations: return &o.menu_animations;
         case kPauseOnFocusLoss: return &o.pause_on_focus_loss;
         case kInvertMouse: return &o.invert_mouse;
+        case kInvertMouseX: return &o.invert_mouse_x;
+        case kInvertPadX: return &o.invert_controller_x;
         case kHoldAim: return &o.hold_aim;
         case kControllerHoldAim: return &o.controller_hold_aim;
         case kGyroAiming: return &o.gyro.enabled;
@@ -498,21 +509,32 @@ void StepName(uint32_t& value, const char* const (&names)[N], int step, char (&t
     std::snprintf(text, sizeof(text), "%s", names[value]);
 }
 
+// the setting a sensitivity row steps, nullptr for any other row
+float* Sensitivity(game::Options& o, int id) {
+    switch (id) {
+        case kSensitivity: return &o.mouse_sensitivity;
+        case kSensitivityVertical: return &o.mouse_vertical_sensitivity;
+        case kAimHorizontal: return &o.aim_horizontal_sensitivity;
+        case kAimVertical: return &o.aim_vertical_sensitivity;
+        case kControllerSensitivity: return &o.controller_sensitivity;
+        case kControllerVertical: return &o.controller_vertical_sensitivity;
+        case kPadAimHorizontal: return &o.controller_aim_horizontal_sensitivity;
+        case kPadAimVertical: return &o.controller_aim_vertical_sensitivity;
+        case kGyroSensitivity: return &o.gyro.sensitivity;
+        default: return nullptr;
+    }
+}
+
 // the general, mouse and keyboard and controller rows that are no ON / OFF, stepped first
 void StepInputRow(int id, int step, char (&text)[64]) {
     game::Options& o = game::Opt();
+    if (float* sensitivity = Sensitivity(o, id)) {
+        StepSensitivity(*sensitivity, step, text);
+        return;
+    }
     switch (id) {
         case kAudioOutput:
             std::snprintf(text, sizeof(text), "%s", kAudioOutputNames[StepTable(kAudioOutputs, o.audio_output, step)]);
-            break;
-        case kSensitivity:
-            StepSensitivity(o.mouse_sensitivity, step, text);
-            break;
-        case kControllerSensitivity:
-            StepSensitivity(o.controller_sensitivity, step, text);
-            break;
-        case kGyroSensitivity:
-            StepSensitivity(o.gyro.sensitivity, step, text);
             break;
         case kGyroAxis:
             StepName(o.gyro.axis, gyro::kAxisNames, step, text);
@@ -586,7 +608,11 @@ constexpr int kControllerPage = 2;
 // the MOUSE AND KEYBOARD page's values, its binds aside
 void CopyKeyboardValues(game::Options& to, const game::Options& from) {
     to.mouse_sensitivity = from.mouse_sensitivity;
+    to.mouse_vertical_sensitivity = from.mouse_vertical_sensitivity;
+    to.aim_horizontal_sensitivity = from.aim_horizontal_sensitivity;
+    to.aim_vertical_sensitivity = from.aim_vertical_sensitivity;
     to.invert_mouse = from.invert_mouse;
+    to.invert_mouse_x = from.invert_mouse_x;
     to.hold_aim = from.hold_aim;
     to.walk_speed = from.walk_speed;
 }
@@ -595,6 +621,10 @@ void CopyControllerValues(game::Options& to, const game::Options& from) {
     to.controller_hold_aim = from.controller_hold_aim;
     to.aim_assist = from.aim_assist;
     to.controller_sensitivity = from.controller_sensitivity;
+    to.controller_vertical_sensitivity = from.controller_vertical_sensitivity;
+    to.controller_aim_horizontal_sensitivity = from.controller_aim_horizontal_sensitivity;
+    to.controller_aim_vertical_sensitivity = from.controller_aim_vertical_sensitivity;
+    to.invert_controller_x = from.invert_controller_x;
     to.rumble_intensity = from.rumble_intensity;
     to.gyro = from.gyro;
 }

@@ -80,8 +80,12 @@ constexpr Entry kEntries[] = {
     {"SPANISH", {u"Espagnol", u"Spanisch", u"Spagnolo", u"Español"}},
 
     // MOUSE AND KEYBOARD rows
-    {"MOUSE SENSITIVITY", {u"Sensibilité de la souris", u"Mausempfindlichkeit", u"Sensibilità del mouse", u"Sensibilidad del ratón"}},
-    {"INVERT LOOK", {u"Inverser la visée", u"Blick umkehren", u"Inverti visuale", u"Invertir vista"}},
+    {"MOUSE HORIZONTAL SENSITIVITY", {u"Sensibilité horizontale de la souris", u"Horizontale Mausempfindlichkeit", u"Sensibilità orizzontale del mouse", u"Sensibilidad horizontal del ratón"}},
+    {"MOUSE VERTICAL SENSITIVITY", {u"Sensibilité verticale de la souris", u"Vertikale Mausempfindlichkeit", u"Sensibilità verticale del mouse", u"Sensibilidad vertical del ratón"}},
+    {"AIM HORIZONTAL SENSITIVITY", {u"Sensibilité horizontale en visée", u"Horizontale Zielempfindlichkeit", u"Sensibilità orizzontale in mira", u"Sensibilidad horizontal al apuntar"}},
+    {"AIM VERTICAL SENSITIVITY", {u"Sensibilité verticale en visée", u"Vertikale Zielempfindlichkeit", u"Sensibilità verticale in mira", u"Sensibilidad vertical al apuntar"}},
+    {"INVERT X AXIS", {u"Inverser l'axe X", u"X-Achse umkehren", u"Inverti asse X", u"Invertir eje X"}},
+    {"INVERT Y AXIS", {u"Inverser l'axe Y", u"Y-Achse umkehren", u"Inverti asse Y", u"Invertir eje Y"}},
     {"HOLD TO AIM", {u"Maintenir pour viser", u"Zum Zielen halten", u"Tieni premuto per mirare", u"Mantener para apuntar"}},
     {"WALK SPEED", {u"Vitesse de marche", u"Gehgeschwindigkeit", u"Velocità di camminata", u"Velocidad al caminar"}},
     {"MOVE FORWARD", {u"Avancer", u"Vorwärts bewegen", u"Avanti", u"Avanzar"}},
@@ -112,7 +116,8 @@ constexpr Entry kEntries[] = {
     {"LOOK RIGHT", {u"Regarder à droite", u"Nach rechts sehen", u"Guarda a destra", u"Mirar a la derecha"}},
 
     // CONTROLLER rows
-    {"SENSITIVITY", {u"Sensibilité", u"Empfindlichkeit", u"Sensibilità", u"Sensibilidad"}},
+    {"CONTROLLER HORIZONTAL SENSITIVITY", {u"Sensibilité horizontale de la manette", u"Horizontale Controller-Empfindlichkeit", u"Sensibilità orizzontale del controller", u"Sensibilidad horizontal del mando"}},
+    {"CONTROLLER VERTICAL SENSITIVITY", {u"Sensibilité verticale de la manette", u"Vertikale Controller-Empfindlichkeit", u"Sensibilità verticale del controller", u"Sensibilidad vertical del mando"}},
     {"RUMBLE INTENSITY", {u"Intensité des vibrations", u"Vibrationsstärke", u"Intensità della vibrazione", u"Intensidad de la vibración"}},
     {"AIM ASSIST", {u"Aide à la visée", u"Zielhilfe", u"Mira assistita", u"Asistencia de apuntado"}},
     {"GYRO", {u"Gyroscope", u"Gyroskop", u"Giroscopio", u"Giroscopio"}},

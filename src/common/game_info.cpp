@@ -113,6 +113,7 @@ void Pad(int port, input::Pad& pad) {
     UpdateTriggerRest(port, pad);
     input::SeenPad(pad);
     if (port == 0) pad.connected = true;
+    if (Opt().invert_controller_x) pad.rx = int16_t(-1 - pad.rx);  // not plain negation: -32768 has no positive
     if (app::MenuOpen()) pad = input::Pad{.connected = pad.connected};
     else if (port == 0) input::Keyboard(pad);
 }
@@ -136,13 +137,26 @@ std::string SystemLanguage() {
     }
 }
 
+float ReadFloat(const toml::table& t, const char* key, float fallback) {
+    return float(t[key].value_or(double(fallback)));
+}
+
 // what the options list cannot hold
 void Load(const void* table) {
     const toml::table& t = *static_cast<const toml::table*>(table);
     Options& o = Opt();
     o.monitor = t["monitor"].value_or(o.monitor);
-    o.mouse_sensitivity = float(t["mouse_sensitivity"].value_or(double(o.mouse_sensitivity)));
-    o.controller_sensitivity = float(t["controller_sensitivity"].value_or(double(o.controller_sensitivity)));
+    o.mouse_sensitivity = ReadFloat(t, "mouse_sensitivity", o.mouse_sensitivity);
+    // absent in files from before the split: the one sensitivity they had
+    o.mouse_vertical_sensitivity = ReadFloat(t, "mouse_vertical_sensitivity", o.mouse_sensitivity);
+    o.aim_horizontal_sensitivity = ReadFloat(t, "aim_horizontal_sensitivity", o.aim_horizontal_sensitivity);
+    o.aim_vertical_sensitivity = ReadFloat(t, "aim_vertical_sensitivity", o.aim_vertical_sensitivity);
+    o.controller_sensitivity = ReadFloat(t, "controller_sensitivity", o.controller_sensitivity);
+    o.controller_vertical_sensitivity = ReadFloat(t, "controller_vertical_sensitivity", o.controller_sensitivity);
+    o.controller_aim_horizontal_sensitivity =
+        ReadFloat(t, "controller_aim_horizontal_sensitivity", o.controller_aim_horizontal_sensitivity);
+    o.controller_aim_vertical_sensitivity =
+        ReadFloat(t, "controller_aim_vertical_sensitivity", o.controller_aim_vertical_sensitivity);
     o.gyro.sensitivity = float(t["gyro_sensitivity"].value_or(double(o.gyro.sensitivity)));
     std::string language = t["language"].value_or(o.language);
     bool known = std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
@@ -164,7 +178,13 @@ void Save(void* table) {
     const Options& o = Opt();
     t.insert("monitor", o.monitor);
     t.insert("mouse_sensitivity", double(o.mouse_sensitivity));
+    t.insert("mouse_vertical_sensitivity", double(o.mouse_vertical_sensitivity));
+    t.insert("aim_horizontal_sensitivity", double(o.aim_horizontal_sensitivity));
+    t.insert("aim_vertical_sensitivity", double(o.aim_vertical_sensitivity));
     t.insert("controller_sensitivity", double(o.controller_sensitivity));
+    t.insert("controller_vertical_sensitivity", double(o.controller_vertical_sensitivity));
+    t.insert("controller_aim_horizontal_sensitivity", double(o.controller_aim_horizontal_sensitivity));
+    t.insert("controller_aim_vertical_sensitivity", double(o.controller_aim_vertical_sensitivity));
     t.insert("gyro_sensitivity", double(o.gyro.sensitivity));
     t.insert("language", o.language);
     toml::table keys;
@@ -205,6 +225,8 @@ const app::GameInfo app::kGame = {
                 {"colour_blind", nullptr, &game::Opt().colour_blind},
                 {"hdr_output", &game::Opt().hdr_output, nullptr},
                 {"invert_mouse", &game::Opt().invert_mouse, nullptr},
+                {"invert_mouse_x", &game::Opt().invert_mouse_x, nullptr},
+                {"invert_controller_x", &game::Opt().invert_controller_x, nullptr},
                 {"hold_aim", &game::Opt().hold_aim, nullptr},
                 {"walk_speed", nullptr, &game::Opt().walk_speed},
                 {"fov", nullptr, &game::Opt().fov},
