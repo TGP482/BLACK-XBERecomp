@@ -13,8 +13,6 @@ void ReleaseCursor();            // the game lost the input: the clip goes, held
 void Keyboard(Pad& pad);         // held keys onto port 0's pad
 // raw mouse counts since the last call, scaled by the settings; false when there are none
 bool TakeMouse(float& dx, float& dy);
-// degrees the controller's gyro turned since the last call, yaw left and pitch down positive; gyro.cpp
-bool TakeGyro(float& yaw, float& pitch);
 
 // actions the keyboard and mouse can be bound to, key names comma separated
 // letter, digit and symbol keys bind by position as the US key there; Binding and ButtonKey show the player's labels
@@ -36,6 +34,7 @@ void LoadBindings();     // after the settings load
 int PressedKey();        // a bindable key or mouse button held now, 0 for none
 bool PanelKey(int vk);   // the settings panel is bound to this key and no key capture wants it
 bool HudKey(int vk);     // the toggle HUD action is bound to this key and no key capture wants it
+bool TexturesKey(int vk);  // the toggle texture replacement action, the same
 // the first key bound to a pad button, upper case, empty for none: 0 to 7 A B X Y black white and the triggers,
 // 8 to 15 dpad up down left right, start, back, the thumbs
 std::string ButtonKey(int button);

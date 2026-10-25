@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <iterator>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -57,6 +58,11 @@ bool Message(void* hwnd, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* resu
                 *result = 0;
                 return true;
             }
+            if (!(lp & kKeyWasDown) && !MenuOpen() && input::TexturesKey(int(wp))) {
+                ToggleTextureReplacement();
+                *result = 0;
+                return true;
+            }
             if (msg == WM_KEYDOWN && wp == VK_ESCAPE && MenuOpen() && !Capturing()) ToggleMenu();
             break;
         case WM_SYSCOMMAND:
@@ -109,10 +115,28 @@ void UpdateTriggerRest(int port, input::Pad& pad) {
 }
 
 // port 0 has the keyboard; the game sees no input while the panel is open
+constexpr float kStickMax = 32767.0f;
+
+// The game drops a stick axis inside its own dead zone: the axis is moved so that zone starts where the chosen
+// one does, the identity at the game's own
+int16_t MoveDeadZone(int16_t value, float zone) {
+    float v = std::min(std::fabs(float(value)) / kStickMax, 1.0f);
+    if (v <= zone) return 0;
+    float out = (kGameDeadZone + (v - zone) / (1.0f - zone) * (1.0f - kGameDeadZone)) * kStickMax;
+    return int16_t(std::lround(value < 0 ? -out : out));
+}
+
+void ApplyDeadZone(input::Pad& pad, float zone) {
+    if (zone <= 0.0f || zone == kGameDeadZone) return;
+    for (int16_t* axis : {&pad.lx, &pad.ly, &pad.rx, &pad.ry}) *axis = MoveDeadZone(*axis, zone);
+}
+
 void Pad(int port, input::Pad& pad) {
     UpdateTriggerRest(port, pad);
     input::SeenPad(pad);
     if (port == 0) pad.connected = true;
+    if (Opt().invert_controller_x) pad.rx = int16_t(-1 - pad.rx);  // not plain negation: -32768 has no positive
+    ApplyDeadZone(pad, Opt().controller_dead_zone);
     if (app::MenuOpen()) pad = input::Pad{.connected = pad.connected};
     else if (port == 0) input::Keyboard(pad);
 }
@@ -136,14 +160,32 @@ std::string SystemLanguage() {
     }
 }
 
+float ReadFloat(const toml::table& t, const char* key, float fallback) {
+    return float(t[key].value_or(double(fallback)));
+}
+
+bool g_settings_read = false;  // Load ran: there was a settings file
+
 // what the options list cannot hold
 void Load(const void* table) {
     const toml::table& t = *static_cast<const toml::table*>(table);
     Options& o = Opt();
+    g_settings_read = true;
+    app::Get().custom_textures = t["custom_textures"].value_or(kCustomTexturesDefault);
     o.monitor = t["monitor"].value_or(o.monitor);
-    o.mouse_sensitivity = float(t["mouse_sensitivity"].value_or(double(o.mouse_sensitivity)));
-    o.controller_sensitivity = float(t["controller_sensitivity"].value_or(double(o.controller_sensitivity)));
-    o.gyro_sensitivity = float(t["gyro_sensitivity"].value_or(double(o.gyro_sensitivity)));
+    o.mouse_sensitivity = ReadFloat(t, "mouse_sensitivity", o.mouse_sensitivity);
+    // absent in files from before the split: the one sensitivity they had
+    o.mouse_vertical_sensitivity = ReadFloat(t, "mouse_vertical_sensitivity", o.mouse_sensitivity);
+    o.aim_horizontal_sensitivity = ReadFloat(t, "aim_horizontal_sensitivity", o.aim_horizontal_sensitivity);
+    o.aim_vertical_sensitivity = ReadFloat(t, "aim_vertical_sensitivity", o.aim_vertical_sensitivity);
+    o.controller_sensitivity = ReadFloat(t, "controller_sensitivity", o.controller_sensitivity);
+    o.controller_vertical_sensitivity = ReadFloat(t, "controller_vertical_sensitivity", o.controller_sensitivity);
+    o.controller_aim_horizontal_sensitivity =
+        ReadFloat(t, "controller_aim_horizontal_sensitivity", o.controller_aim_horizontal_sensitivity);
+    o.controller_aim_vertical_sensitivity =
+        ReadFloat(t, "controller_aim_vertical_sensitivity", o.controller_aim_vertical_sensitivity);
+    o.controller_dead_zone = ReadFloat(t, "controller_dead_zone", o.controller_dead_zone);
+    o.gyro.sensitivity = float(t["gyro_sensitivity"].value_or(double(o.gyro.sensitivity)));
     std::string language = t["language"].value_or(o.language);
     bool known = std::find(std::begin(kLanguages), std::end(kLanguages), language) != std::end(kLanguages);
     if (known || language == "auto") o.language = language;
@@ -154,6 +196,7 @@ void Load(const void* table) {
 
 // after the settings load, before boot
 void Init() {
+    if (!g_settings_read) app::Get().custom_textures = kCustomTexturesDefault;
     BootLanguage();  // latched before the panel can change the setting
     input::LoadBindings();
     audio::SetOutputMode(Opt().audio_output);
@@ -164,8 +207,15 @@ void Save(void* table) {
     const Options& o = Opt();
     t.insert("monitor", o.monitor);
     t.insert("mouse_sensitivity", double(o.mouse_sensitivity));
+    t.insert("mouse_vertical_sensitivity", double(o.mouse_vertical_sensitivity));
+    t.insert("aim_horizontal_sensitivity", double(o.aim_horizontal_sensitivity));
+    t.insert("aim_vertical_sensitivity", double(o.aim_vertical_sensitivity));
     t.insert("controller_sensitivity", double(o.controller_sensitivity));
-    t.insert("gyro_sensitivity", double(o.gyro_sensitivity));
+    t.insert("controller_vertical_sensitivity", double(o.controller_vertical_sensitivity));
+    t.insert("controller_aim_horizontal_sensitivity", double(o.controller_aim_horizontal_sensitivity));
+    t.insert("controller_aim_vertical_sensitivity", double(o.controller_aim_vertical_sensitivity));
+    t.insert("controller_dead_zone", double(o.controller_dead_zone));
+    t.insert("gyro_sensitivity", double(o.gyro.sensitivity));
     t.insert("language", o.language);
     toml::table keys;
     for (const auto& [id, value] : o.keys) keys.insert(id, value);
@@ -202,8 +252,11 @@ const app::GameInfo app::kGame = {
                 {"fps_counter", &game::Opt().fps_counter, nullptr},
                 {"reload_blur", &game::Opt().reload_blur, nullptr},
                 {"fmv_scale", nullptr, &game::Opt().fmv_scale},
+                {"colour_blind", nullptr, &game::Opt().colour_blind},
                 {"hdr_output", &game::Opt().hdr_output, nullptr},
                 {"invert_mouse", &game::Opt().invert_mouse, nullptr},
+                {"invert_mouse_x", &game::Opt().invert_mouse_x, nullptr},
+                {"invert_controller_x", &game::Opt().invert_controller_x, nullptr},
                 {"hold_aim", &game::Opt().hold_aim, nullptr},
                 {"walk_speed", nullptr, &game::Opt().walk_speed},
                 {"fov", nullptr, &game::Opt().fov},
@@ -217,7 +270,11 @@ const app::GameInfo app::kGame = {
                 {"controller_hold_aim", &game::Opt().controller_hold_aim, nullptr},
                 {"aim_assist", &game::Opt().aim_assist, nullptr},
                 {"rumble_intensity", nullptr, &game::Opt().rumble_intensity},
-                {"gyro_aiming", &game::Opt().gyro_aiming, nullptr},
+                {"gyro_aiming", &game::Opt().gyro.enabled, nullptr},
+                {"gyro_axis", nullptr, &game::Opt().gyro.axis},
+                {"gyro_button", nullptr, &game::Opt().gyro.button},
+                {"gyro_button_mode", nullptr, &game::Opt().gyro.button_mode},
+                {"gyro_recenter_button", nullptr, &game::Opt().gyro.recenter_button},
                 {"menu_animations", &game::Opt().menu_animations, nullptr},
                 {"infinite_ammo", &game::Opt().infinite_ammo, nullptr},
                 {"rapid_fire", nullptr, &game::Opt().rapid_fire},

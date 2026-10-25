@@ -59,6 +59,16 @@ void GameLanguage(X86Context&, uint8_t*) {
     W32(kLanguage, Index());
 }
 
+// Queues a speech line (eax the sound manager, edx the line). In the first level the US build only lets English lines
+// play; the Europe disc has that level's speech in every language
+X86_EXTERN_FUNC(__imp__sub_001407A0);
+X86_FUNC(sub_001407A0) {
+    uint32_t language = R32(kLanguage);
+    W32(kLanguage, kUs.index);
+    __imp__sub_001407A0(ctx, base);
+    W32(kLanguage, language);
+}
+
 namespace game {
 
 // the disc has a language besides English: the US release has none, so no LANGUAGE row and no translations

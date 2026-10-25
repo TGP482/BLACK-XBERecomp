@@ -660,7 +660,7 @@ HLE_STDCALL(D3DDevice_Swap, 1) {
         g_backend_presents++;
     }
     g_fog = {};
-    app::PaceFrame();
+    app::Pace();
     RotateBuffers();
     g_state.rt = SurfaceOf(Dev(kDevRenderTarget));
     uint32_t n = Dev(kDevSwapCount) + 1;

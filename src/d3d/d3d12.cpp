@@ -13,6 +13,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -41,6 +42,7 @@
 #include "gpu/ext.h"
 #include "gpu/shaders.h"
 #include "gpu/texture.h"
+#include "gpu/texturedumper.h"
 #include "gpu/vertex.h"
 #include "kernel/kernel.h"
 
@@ -120,7 +122,7 @@ bool CaptureOn() {
 }
 
 const char* kBlitHlsl = R"(
-cbuffer B : register(b1) { float4 uvrect; float4 opts; };
+cbuffer B : register(b1) { float4 uvrect; float4 opts; float4 colour[3]; };
 Texture2D img : register(t0);
 Texture2D lut : register(t1);
 SamplerState ls : register(s0);
@@ -142,6 +144,11 @@ float4 psmain(O i) : SV_Target {
     c /= n * n;
     c.rgb *= opts.w;
     if (opts.x > 0) c.rgb = float3(lut.Sample(ps, float2(c.r, 0.5)).r, lut.Sample(ps, float2(c.g, 0.5)).g, lut.Sample(ps, float2(c.b, 0.5)).b);
+    // colour[0].w: the rows hold a colour matrix, applied to linear colour
+    if (colour[0].w > 0) {
+        float3x3 m = float3x3(colour[0].xyz, colour[1].xyz, colour[2].xyz);
+        c.rgb = pow(saturate(mul(m, pow(saturate(c.rgb), 2.2))), 1 / 2.2);
+    }
     return float4(c.rgb, opts.y > 0 ? c.a : 1);
 }
 )";
@@ -707,6 +714,9 @@ struct Tex {
     uint64_t frame = 0;
     uint64_t palette = 0;  // hash of the colours a P8 texture was decoded with
     uint8_t flags = 0;  // Extension::Decoded's
+    const Tex* swap = nullptr;  // the texture pack's image drawn in its place
+    uint64_t pack_key = 0;      // its pack image is still loading
+    uint32_t pack_gen = 0;      // texturedumper::Generation the key was taken at, 0 after new bytes
 };
 
 struct PsoKey {
@@ -752,6 +762,7 @@ struct BlitOptions {
     DXGI_FORMAT rtv = kBgra;  // the target's format
     bool over = false;        // premultiplied over the target, which keeps its alpha
     uint32_t samples = 1;     // the target's
+    const float* colour = nullptr;  // 3x3 colour matrix by rows, nullptr leaves colours alone
 };
 
 // Shrink's settings past the source and the size
@@ -943,6 +954,10 @@ private:
     void UploadTexture(Tex& tx, const TextureDesc& d, const FormatInfo& fi, const uint8_t* p, const uint32_t* colours,
                        bool same);
     void UploadTextureLevel(Tex& tx, uint32_t f, uint32_t l, const std::vector<uint8_t>& px, uint32_t pitch);
+    void LatchPackKey(Tex& tx, const TextureDesc& d, const FormatInfo& fi, const uint32_t* colours);
+    void LatchPackImage(Tex& tx);
+    void CreatePackTexture(Tex& r, const texturedumper::Image& img);
+    void ReleasePackTextures();
     void EnsurePixelShader(const PixelKey& pk, DrawShaders& sh);
     void BuildPipelineKey(const State& s, const Assembled& a, uint64_t vh, uint64_t ph, PsoKey& k);
     void KeyDepthStencil(const State& s, const Assembled& a, PsoKey& k);
@@ -1099,6 +1114,7 @@ private:
     uint32_t smp_used_ = 0;
     std::unordered_map<uint64_t, Target> targets_;
     std::unordered_map<uint64_t, Tex> textures_;  // by data address, a P8 texture's with its palette's above
+    std::unordered_map<uint64_t, Tex> pack_textures_;  // texture pack images by key, kept for the run
     std::unordered_map<uint64_t, ComPtr<ID3D12PipelineState>> blit_psos_;
     Extension* ext_ = nullptr;
     // one frame capture: every draw in a text file, each target as the frame leaves it, the textures it read
@@ -1333,6 +1349,7 @@ void D3D12Backend::CreateGammaLut() {
 
 void D3D12Backend::LoadSettings() {
     scale_ = app::RenderScale(guest_h_);
+    texturedumper::Update();
     msaa_set_ = game::Opt().msaa;
     msaa_ = Samples(msaa_set_);
     ext_ = g_extension.get();
@@ -1896,8 +1913,12 @@ void D3D12Backend::Blit(ID3D12Resource* src, DXGI_FORMAT fmt, const float uvrect
     dev_->CreateShaderResourceView(lut_.Get(), &sv, Cpu(srv_heap_.Get(), slot + 1, srv_inc_));
     uint32_t si = EnsureBlitSamplers();
     Alloc cb = Upload(256, 256);
-    float c[8] = {uvrect[0], uvrect[1], uvrect[2], uvrect[3],
-                  o.gamma ? 1.0f : 0.0f, o.alpha ? 1.0f : 0.0f, float(o.taps), o.mul};
+    float c[20] = {uvrect[0], uvrect[1], uvrect[2], uvrect[3],
+                   o.gamma ? 1.0f : 0.0f, o.alpha ? 1.0f : 0.0f, float(o.taps), o.mul};
+    if (o.colour) {
+        for (int row = 0; row < 3; row++) std::memcpy(c + 8 + row * 4, o.colour + row * 3, 3 * sizeof(float));
+        c[11] = 1.0f;
+    }
     std::memcpy(cb.cpu, c, sizeof(c));
     DrawFullScreen(EnsureBlitPipeline(o.rtv, o.over, o.samples), cb.gpu, slot, si);
 }
@@ -2334,6 +2355,7 @@ ID3D12Resource* D3D12Backend::BindGuestTexture(const State& s, int stage, const 
     StagePalette palette;
     ReadStagePalette(s, stage, d, palette);
     const uint64_t key = uint64_t(palette.va) << 32 | d.data;
+    const uint32_t* colours = palette.va ? palette.colours : nullptr;
     Tex& tx = textures_[key];
     uint32_t total = TotalSize(d);
     bool same = SameTexture(tx, d);
@@ -2351,13 +2373,70 @@ ID3D12Resource* D3D12Backend::BindGuestTexture(const State& s, int stage, const 
             g_perf.texups++;
             g_perf.texup_bytes += total;
             tx.sig = sig;
-            UploadTexture(tx, d, fi, p, palette.va ? palette.colours : nullptr, same);
+            UploadTexture(tx, d, fi, p, colours, same);
+            tx.pack_gen = 0;
         }
     }
-    FillTextureView(tx, d, stages.sv[stage]);
+    if (tx.pack_gen != texturedumper::Generation()) LatchPackKey(tx, d, fi, colours);
+    if (tx.pack_key) LatchPackImage(tx);
+    const Tex& drawn = tx.swap ? *tx.swap : tx;
+    FillTextureView(drawn, d, stages.sv[stage]);
     if (fi.depth) info.shadow = ShadowDepthKind(d.format);
     if (ext_) ext_->Sampled(d, nullptr, tx.flags, info);
-    return tx.res.Get();
+    return drawn.res.Get();
+}
+
+// after new bytes or a texture setting change: the name the pack and the dumps know the bytes by, a P8 texture's
+// with the stage's colours
+void D3D12Backend::LatchPackKey(Tex& tx, const TextureDesc& d, const FormatInfo& fi, const uint32_t* colours) {
+    const uint8_t* p = static_cast<const uint8_t*>(kernel::HostPtr(d.data));
+    tx.pack_gen = texturedumper::Generation();
+    tx.swap = nullptr;
+    uint64_t key = texturedumper::Key(d, fi, p, colours);
+    texturedumper::Dump(key, d, p, colours);
+    // dumping alone keys the bytes too: the pack image is not drawn then
+    tx.pack_key = texturedumper::Replacing() ? key : 0;
+}
+
+// the pack image for tx's bytes once it has loaded; textures with the same bytes share its GPU copy
+void D3D12Backend::LatchPackImage(Tex& tx) {
+    auto it = pack_textures_.find(tx.pack_key);
+    if (it == pack_textures_.end()) {
+        texturedumper::Image img;
+        texturedumper::Lookup got = texturedumper::Take(tx.pack_key, img);
+        if (got == texturedumper::Lookup::Loading) return;
+        if (got == texturedumper::Lookup::None) {
+            tx.pack_key = 0;
+            return;
+        }
+        it = pack_textures_.emplace(tx.pack_key, Tex{}).first;
+        CreatePackTexture(it->second, img);
+    }
+    if (it->second.res) tx.swap = &it->second;
+    tx.pack_key = 0;
+}
+
+void D3D12Backend::CreatePackTexture(Tex& r, const texturedumper::Image& img) {
+    r.fmt = img.format;
+    r.levels = uint32_t(img.levels.size());
+    D3D12_HEAP_PROPERTIES hp{D3D12_HEAP_TYPE_DEFAULT};
+    D3D12_RESOURCE_DESC td = Texture2DDesc(r.fmt, img.width, img.height);
+    td.MipLevels = UINT16(r.levels);
+    if (FAILED(dev_->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                             IID_PPV_ARGS(&r.res)))) {
+        LOGE("texture pack: a %ux%u image could not be made", img.width, img.height);
+        return;
+    }
+    for (uint32_t l = 0; l < r.levels; l++) UploadTextureLevel(r, 0, l, img.levels[l].px, img.levels[l].pitch);
+    D3D12_RESOURCE_STATES st = D3D12_RESOURCE_STATE_COPY_DEST;
+    Transition(r.res.Get(), st, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+}
+
+// the pack's files changed: each image is made again when next drawn; Generation moved on, so every texture lets
+// go of its old copy before it draws
+void D3D12Backend::ReleasePackTextures() {
+    for (auto& entry : pack_textures_) CurrentFrame().garbage.push_back(entry.second.res);
+    pack_textures_.clear();
 }
 
 ID3D12Resource* D3D12Backend::BindTexture(const State& s, int stage, DrawTextures& stages) {
@@ -3594,6 +3673,34 @@ void D3D12Backend::DrawHdrFrame(Target* t, ID3D12Resource* r, D3D12_CPU_DESCRIPT
     Pass(kHdrHlsl, "hdr10", kHdr10Format, bb, bb_w_, bb_h_, src, fmt, p, -1);
 }
 
+// Colour blind modes: Machado 2009 simulation at full severity, then Fidaner's daltonize, which moves the difference
+// the eye loses into channels it still sees. Rows of protanopia, deuteranopia, tritanopia.
+constexpr float kColourBlindSimulate[3][9] = {
+    {0.152286f, 1.052583f, -0.204868f, 0.114503f, 0.786281f, 0.099216f, -0.003882f, -0.048116f, 1.051998f},
+    {0.367322f, 0.860646f, -0.227968f, 0.280085f, 0.672501f, 0.047413f, -0.011820f, 0.042940f, 0.968881f},
+    {1.255528f, -0.076749f, -0.178779f, -0.078411f, 0.930809f, 0.147602f, 0.004733f, 0.691367f, 0.303900f},
+};
+constexpr float kColourBlindShift[3][9] = {
+    {0, 0, 0, 0.7f, 1, 0, 0.7f, 0, 1},
+    {0, 0, 0, 0.7f, 1, 0, 0.7f, 0, 1},
+    {1, 0, 0.7f, 0, 1, 0.7f, 0, 0, 0},
+};
+
+// mode 1 to 3: identity + shift * (identity - simulate)
+std::array<float, 9> ColourBlindMatrix(uint32_t mode) {
+    const float* sim = kColourBlindSimulate[mode - 1];
+    const float* shift = kColourBlindShift[mode - 1];
+    std::array<float, 9> m{};
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 3; c++) {
+            float lost = 0;
+            for (int k = 0; k < 3; k++) lost += shift[r * 3 + k] * (float(k == c) - sim[k * 3 + c]);
+            m[r * 3 + c] = float(r == c) + lost;
+        }
+    }
+    return m;
+}
+
 // the frame letterboxed to the game's aspect into the bound target
 void D3D12Backend::BlitFrame(Target& t, ID3D12Resource* r, DXGI_FORMAT rtv) {
     float aspect = game::Aspect();
@@ -3606,7 +3713,9 @@ void D3D12Backend::BlitFrame(Target& t, ID3D12Resource* r, DXGI_FORMAT rtv) {
     D3D12_RECT scissor{0, 0, LONG(bb_w_), LONG(bb_h_)};
     cl_->RSSetViewports(1, &vp);
     cl_->RSSetScissorRects(1, &scissor);
-    if (r) Blit(r, t.fmt, uv, {.gamma = gamma_, .rtv = rtv});
+    uint32_t mode = std::min(game::Opt().colour_blind, 3u);
+    std::array<float, 9> colour = mode ? ColourBlindMatrix(mode) : std::array<float, 9>{};
+    if (r) Blit(r, t.fmt, uv, {.gamma = gamma_, .rtv = rtv, .colour = mode ? colour.data() : nullptr});
 }
 
 void D3D12Backend::RenderUi() {
@@ -3788,6 +3897,7 @@ void D3D12Backend::Present(const Surface& front) {
 }
 
 void D3D12Backend::ApplySettings() {
+    if (texturedumper::Update()) ReleasePackTextures();
     float want = app::RenderScale(guest_h_);
     bool remake = ext_ && ext_->Settings();
     uint32_t msaa = game::Opt().msaa;

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "audio/output.h"
+#include "sound/filter.h"
 #include "sound/reverb.h"
 #include "xdk/hle.h"
 
@@ -84,6 +85,7 @@ struct Voice {
     // levels
     float volume = 1;
     float headroom = 1;
+    VoiceFilter filter;
     uint8_t nbins = 0;
     uint8_t bin[8] = {};
     int32_t bin_mb[32] = {};  // by mix bin
@@ -178,6 +180,7 @@ void Complete(Voice& v, Packet& pk, uint32_t status);
 void Run(X86Context& ctx, const std::vector<Done>& done);
 int64_t NowMs();
 void ReadFormat(Voice& v, uint32_t wfx);
+uint32_t SetFilter(Voice& v, uint32_t desc);
 void SetBins(Voice& v, uint32_t mixbins);
 void SetBinVolumes(Voice& v, uint32_t mixbins);
 float DefaultHeadroom(uint32_t flags);

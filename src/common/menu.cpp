@@ -24,6 +24,7 @@
 
 #include "app/app.h"
 #include "audio/output.h"
+#include "common/gyro.h"
 #include "common/menu.h"
 #include "common/monitor.h"
 #include "common/mouse_keyboard.h"
@@ -69,6 +70,10 @@ constexpr uint32_t kAoValues[] = {0, 1, 2};
 const char* const kAoNames[] = {"OFF", "SSAO", "GTAO"};
 constexpr uint32_t kFmvScales[] = {0, 1};
 const char* const kFmvScaleNames[] = {"FILL", "4:3"};
+constexpr uint32_t kColourBlindModes[] = {0, 1, 2, 3};
+const char* const kColourBlindNames[] = {"OFF", "PROTANOPIA", "DEUTERANOPIA", "TRITANOPIA"};
+constexpr uint32_t kDumpFormats[] = {0, 1};
+const char* const kDumpFormatNames[] = {"PNG", "DDS"};
 constexpr uint32_t kAudioOutputs[] = {audio::kOutputAuto, audio::kOutputMono, audio::kOutputStereo,
                                       audio::kOutputSurround};
 const char* const kAudioOutputNames[] = {"AUTOMATIC", "MONO", "2.0 STEREO", "5.1 SURROUND"};
@@ -232,7 +237,10 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kAmbientOcclusion, kAudioOutput, kHdrOutput, kMonitor, kLanguage, kSmaa,
              kPauseOnFocusLoss, kFmvScale,
              kControllerHoldAim, kControllerSensitivity, kRumbleIntensity, kMenuAnimations,
-             kGyroAiming, kGyroSensitivity, kAimAssist,
+             kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
+             kGyroCalibrate, kColourBlind, kSensitivityVertical, kAimHorizontal, kAimVertical, kInvertMouseX,
+             kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX, kTextureReplacement,
+             kTextureDumping, kDumpFormat, kDeadZone,
              kInfiniteAmmo, kInfiniteGrenades, kRapidFire, kNoRecoil, kGodMode, kOneHitKill,
              kEsp, kAimbot, kGameSpeed, kUnlockLevels, kUnlockBlackOps };
 
@@ -269,6 +277,7 @@ constexpr Row kSettingsRows[] = {
     {Kind::Value, kMaxFps, "MAX FRAME RATE"},
     {Kind::Value, kFpsCounter, "FPS COUNTER"},
     {Kind::Value, kFmvScale, "FMV SCALE"},
+    {Kind::Value, kColourBlind, "COLOUR BLIND MODE"},
     {Kind::Heading, -1, "GRAPHICS"},
     {Kind::Value, kMsaa, "MSAA"},
     {Kind::Value, kSmaa, "SMAA"},
@@ -282,13 +291,21 @@ constexpr Row kSettingsRows[] = {
     {Kind::Value, kPauseOnFocusLoss, "PAUSE ON FOCUS LOSS"},
     {Kind::Value, kLanguage, "LANGUAGE"},
     {Kind::Value, kAudioOutput, "AUDIO OUTPUT"},
+    {Kind::Heading, -1, "TEXTURES"},
+    {Kind::Value, kTextureReplacement, "TEXTURE REPLACEMENT"},
+    {Kind::Value, kTextureDumping, "TEXTURE DUMPING"},
+    {Kind::Value, kDumpFormat, "DUMP FORMAT"},
 };
 
 const std::vector<Row>& InputRows() {
     static const std::vector<Row> list = [] {
         std::vector<Row> out = {{Kind::Heading, -1, "MOUSE"},
-                                {Kind::Value, kSensitivity, "MOUSE SENSITIVITY"},
-                                {Kind::Value, kInvertMouse, "INVERT LOOK"},
+                                {Kind::Value, kSensitivity, "MOUSE HORIZONTAL SENSITIVITY"},
+                                {Kind::Value, kSensitivityVertical, "MOUSE VERTICAL SENSITIVITY"},
+                                {Kind::Value, kAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
+                                {Kind::Value, kAimVertical, "AIM VERTICAL SENSITIVITY"},
+                                {Kind::Value, kInvertMouseX, "INVERT X AXIS"},
+                                {Kind::Value, kInvertMouse, "INVERT Y AXIS"},
                                 {Kind::Value, kHoldAim, "HOLD TO AIM"},
                                 {Kind::Heading, -1, "KEYBOARD"}};
         size_t count = 0;
@@ -301,13 +318,24 @@ const std::vector<Row>& InputRows() {
 }
 
 constexpr Row kControllerRows[] = {
-    {Kind::Heading, -1, "CONTROLLER"},
+    {Kind::Heading, -1, "GENERAL"},
     {Kind::Value, kControllerHoldAim, "HOLD TO AIM"},
     {Kind::Value, kAimAssist, "AIM ASSIST"},
-    {Kind::Value, kControllerSensitivity, "SENSITIVITY"},
+    {Kind::Value, kControllerSensitivity, "HORIZONTAL SENSITIVITY"},
+    {Kind::Value, kControllerVertical, "VERTICAL SENSITIVITY"},
+    {Kind::Value, kPadAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
+    {Kind::Value, kPadAimVertical, "AIM VERTICAL SENSITIVITY"},
+    {Kind::Value, kInvertPadX, "INVERT X AXIS"},
+    {Kind::Value, kDeadZone, "DEADZONE"},
     {Kind::Value, kRumbleIntensity, "RUMBLE INTENSITY"},
+    {Kind::Heading, -1, "GYRO"},
     {Kind::Value, kGyroAiming, "GYRO AIMING"},
     {Kind::Value, kGyroSensitivity, "GYRO SENSITIVITY"},
+    {Kind::Value, kGyroAxis, "GYRO AXIS"},
+    {Kind::Value, kGyroButton, "GYRO BUTTON"},
+    {Kind::Value, kGyroButtonMode, "GYRO BUTTON MODE"},
+    {Kind::Value, kGyroRecenter, "RECENTER BUTTON"},
+    {Kind::Value, kGyroCalibrate, "CALIBRATE GYRO"},
 };
 
 // the setting an ON / OFF row flips, nullptr for any other row
@@ -323,9 +351,13 @@ bool* ToggleFlag(Settings& s, int id) {
         case kMenuAnimations: return &o.menu_animations;
         case kPauseOnFocusLoss: return &o.pause_on_focus_loss;
         case kInvertMouse: return &o.invert_mouse;
+        case kInvertMouseX: return &o.invert_mouse_x;
+        case kTextureReplacement: return &s.custom_textures;
+        case kTextureDumping: return &s.dump_textures;
+        case kInvertPadX: return &o.invert_controller_x;
         case kHoldAim: return &o.hold_aim;
         case kControllerHoldAim: return &o.controller_hold_aim;
-        case kGyroAiming: return &o.gyro_aiming;
+        case kGyroAiming: return &o.gyro.enabled;
         case kAimAssist: return &o.aim_assist;
         case kInfiniteAmmo: return &o.infinite_ammo;
         case kNoRecoil: return &o.no_recoil;
@@ -451,6 +483,16 @@ bool StepDisplayRow(int id, int step, Settings& s, char (&text)[64]) {
         case kFmvScale:
             std::snprintf(text, sizeof(text), "%s", kFmvScaleNames[StepTable(kFmvScales, o.fmv_scale, step)]);
             return true;
+        case kColourBlind: {
+            int mode = StepTable(kColourBlindModes, o.colour_blind, step);
+            std::snprintf(text, sizeof(text), "%s", kColourBlindNames[mode]);
+            return true;
+        }
+        case kDumpFormat: {
+            int format = StepTable(kDumpFormats, s.texture_dump_format, step);
+            std::snprintf(text, sizeof(text), "%s", kDumpFormatNames[format]);
+            return true;
+        }
         case kFov:
             if (step) o.fov = uint32_t(StepRange(int(o.fov), kFovMin, kFovMax, 1, step));
             FovText(o.fov, text);
@@ -522,21 +564,66 @@ void StepSensitivity(float& value, int step, char (&text)[64]) {
 // the setting of kLanguageNames[i]
 const char* LanguageCode(int i) { return i ? game::kLanguages[i - 1] : "auto"; }
 
+// one of names, stepped first
+template <size_t N>
+void StepName(uint32_t& value, const char* const (&names)[N], int step, char (&text)[64]) {
+    value = uint32_t(StepIndex(int(std::min<size_t>(value, N - 1)), step, int(N)));
+    std::snprintf(text, sizeof(text), "%s", names[value]);
+}
+
+// the setting a sensitivity row steps, nullptr for any other row
+float* Sensitivity(game::Options& o, int id) {
+    switch (id) {
+        case kSensitivity: return &o.mouse_sensitivity;
+        case kSensitivityVertical: return &o.mouse_vertical_sensitivity;
+        case kAimHorizontal: return &o.aim_horizontal_sensitivity;
+        case kAimVertical: return &o.aim_vertical_sensitivity;
+        case kControllerSensitivity: return &o.controller_sensitivity;
+        case kControllerVertical: return &o.controller_vertical_sensitivity;
+        case kPadAimHorizontal: return &o.controller_aim_horizontal_sensitivity;
+        case kPadAimVertical: return &o.controller_aim_vertical_sensitivity;
+        case kGyroSensitivity: return &o.gyro.sensitivity;
+        default: return nullptr;
+    }
+}
+
 // the general, mouse and keyboard and controller rows that are no ON / OFF, stepped first
 void StepInputRow(int id, int step, char (&text)[64]) {
     game::Options& o = game::Opt();
+    if (float* sensitivity = Sensitivity(o, id)) {
+        StepSensitivity(*sensitivity, step, text);
+        return;
+    }
     switch (id) {
+        case kDeadZone: {
+            float zone = o.controller_dead_zone > 0.0f ? o.controller_dead_zone : game::kGameDeadZone;
+            // 0.1 to 1.0 in steps of 0.1
+            if (step) o.controller_dead_zone = float(StepRange(int(std::lround(zone * 10.0f)), 1, 10, 1, step)) / 10.0f;
+            if (o.controller_dead_zone == 0.0f) {
+                std::snprintf(text, sizeof(text), "%.1f (DEFAULT)", game::kGameDeadZone);
+            } else {
+                std::snprintf(text, sizeof(text), "%.1f", o.controller_dead_zone);
+            }
+            break;
+        }
         case kAudioOutput:
             std::snprintf(text, sizeof(text), "%s", kAudioOutputNames[StepTable(kAudioOutputs, o.audio_output, step)]);
             break;
-        case kSensitivity:
-            StepSensitivity(o.mouse_sensitivity, step, text);
+        case kGyroAxis:
+            StepName(o.gyro.axis, gyro::kAxisNames, step, text);
             break;
-        case kControllerSensitivity:
-            StepSensitivity(o.controller_sensitivity, step, text);
+        case kGyroButton:
+            StepName(o.gyro.button, gyro::kButtonNames, step, text);
             break;
-        case kGyroSensitivity:
-            StepSensitivity(o.gyro_sensitivity, step, text);
+        case kGyroButtonMode:
+            StepName(o.gyro.button_mode, gyro::kButtonModeNames, step, text);
+            break;
+        case kGyroRecenter:
+            StepName(o.gyro.recenter_button, gyro::kButtonNames, step, text);
+            break;
+        case kGyroCalibrate:
+            if (step) gyro::StartCalibration();
+            std::snprintf(text, sizeof(text), "%s", gyro::Calibrating() ? "KEEP STILL" : "START");
             break;
         case kRumbleIntensity:
             // 10% to 200% in steps of 10
@@ -595,7 +682,11 @@ constexpr int kCheatsPage = 3;
 // the MOUSE AND KEYBOARD page's values, its binds aside
 void CopyKeyboardValues(game::Options& to, const game::Options& from) {
     to.mouse_sensitivity = from.mouse_sensitivity;
+    to.mouse_vertical_sensitivity = from.mouse_vertical_sensitivity;
+    to.aim_horizontal_sensitivity = from.aim_horizontal_sensitivity;
+    to.aim_vertical_sensitivity = from.aim_vertical_sensitivity;
     to.invert_mouse = from.invert_mouse;
+    to.invert_mouse_x = from.invert_mouse_x;
     to.hold_aim = from.hold_aim;
     to.walk_speed = from.walk_speed;
 }
@@ -604,9 +695,13 @@ void CopyControllerValues(game::Options& to, const game::Options& from) {
     to.controller_hold_aim = from.controller_hold_aim;
     to.aim_assist = from.aim_assist;
     to.controller_sensitivity = from.controller_sensitivity;
+    to.controller_vertical_sensitivity = from.controller_vertical_sensitivity;
+    to.controller_aim_horizontal_sensitivity = from.controller_aim_horizontal_sensitivity;
+    to.controller_aim_vertical_sensitivity = from.controller_aim_vertical_sensitivity;
+    to.invert_controller_x = from.invert_controller_x;
+    to.controller_dead_zone = from.controller_dead_zone;
     to.rumble_intensity = from.rumble_intensity;
-    to.gyro_aiming = from.gyro_aiming;
-    to.gyro_sensitivity = from.gyro_sensitivity;
+    to.gyro = from.gyro;
 }
 
 void RestoreDefaults(int page) {
@@ -638,6 +733,7 @@ void RestoreDefaults(int page) {
     }
     game::Options keep = o;
     Get() = Settings{};
+    Get().custom_textures = game::kCustomTexturesDefault;
     o = game::Options{};
     CopyKeyboardValues(o, keep);
     CopyControllerValues(o, keep);
@@ -909,52 +1005,7 @@ void DrawPanel() {
     ImGui::PopStyleColor(int(std::size(kPanelColors)));
 }
 
-// the game window's monitor's refresh rate, read again each second (a mode change, a move to another monitor); 0
-// when unreadable
-uint32_t RefreshRate() {
-    static uint32_t rate = 0;
-    static ULONGLONG next = 0;
-    ULONGLONG now = GetTickCount64();
-    if (now < next) return rate;
-    next = now + 1000;
-    MONITORINFOEXW mi{};
-    mi.cbSize = sizeof(mi);
-    DEVMODEW mode{};
-    mode.dmSize = sizeof(mode);
-    HMONITOR monitor = MonitorFromWindow(static_cast<HWND>(Window()), MONITOR_DEFAULTTOPRIMARY);
-    bool read = GetMonitorInfoW(monitor, &mi) && EnumDisplaySettingsW(mi.szDevice, ENUM_CURRENT_SETTINGS, &mode);
-    rate = read && mode.dmDisplayFrequency > 1 ? mode.dmDisplayFrequency : 0;
-    return rate;
-}
-
-// as app::Pace, at this cap
-void PaceAt(uint32_t cap) {
-    using clock = std::chrono::steady_clock;
-    static clock::time_point next = clock::now();
-    auto now = clock::now();
-    if (!cap) {
-        next = now;
-        return;
-    }
-    auto period = std::chrono::nanoseconds(1000000000ull / cap);
-    next += period;
-    if (next < now - period) next = now;
-    while (clock::now() + std::chrono::milliseconds(2) < next) Sleep(1);
-    while (clock::now() < next) std::this_thread::yield();
-}
-
 }  // namespace
-
-void PaceFrame() {
-    if (Get().fps_cap != kFpsCapRefresh) {
-        Pace();
-        return;
-    }
-    // a few under, so a variable refresh display stays in its range and vsync never waits a whole refresh
-    constexpr uint32_t kRefreshMargin = 3;
-    uint32_t rate = RefreshRate();
-    PaceAt(rate > kRefreshMargin ? rate - kRefreshMargin : 0);
-}
 
 const rows::Row* rows::Page(int page, size_t* count) {
     if (page == kKeyboardPage) {
@@ -989,6 +1040,11 @@ bool rows::Enabled(const Row& row) { return row.kind != Kind::Value || !Greyed(r
 bool MenuOpen() { return g_open.load(std::memory_order_relaxed); }
 
 bool Capturing() { return g_capture >= 0; }
+
+void ToggleTextureReplacement() {
+    Get().custom_textures = !Get().custom_textures;
+    Changed(false);
+}
 
 void ToggleMenu() {
     bool open = !MenuOpen();
