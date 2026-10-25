@@ -179,6 +179,8 @@ static float Widen(uint32_t degrees) {
 }
 
 static float g_gun = 1.0f;  // the gun's picture over the view's
+static float g_view_fov = 0;  // the degrees FieldOfView left
+static float g_game_fov = 0;  // the game's own in their place
 
 // The view of play, 70 over the zoom: the setting from the hip, the game's own once the aim is in.
 // ecx the weapon, xmm0 its zoom. Scripted cameras write theirs after this
@@ -190,7 +192,25 @@ void FieldOfView(X86Context& ctx, uint8_t*) {
     float view = 1 + (Widen(game::Opt().fov) - 1) * hip;
     g_gun = view / (1 + (Widen(game::Opt().viewmodel_fov) - 1) * hip);
     float& fov = ctx.xmm[1].f[0];
+    g_game_fov = fov;
     if (view != 1) fov = std::atan(std::tan(fov * kHalf) * view) / kHalf;
+    g_view_fov = fov;
+}
+
+// camera
+constexpr uint32_t kCameraFov = 0x750;
+constexpr uint32_t kCameraTangent = 0x16A0;  // of the half angle
+
+// the game's own tangent over the view's, for a view with FieldOfView's degrees
+static float GameViewShare(float fov) {
+    if (fov != g_view_fov) return 1;
+    return std::tan(g_game_fov * kHalf) / std::tan(g_view_fov * kHalf);
+}
+
+// LOD, draw distance and particle count compares scale with the camera's tangent (ebx camera): they keep the
+// game's own view, a wider one drops models and effects in front of the player
+void LodTangent(X86Context& ctx, uint8_t*) {
+    G<float>(ctx.ebx + kCameraTangent) *= GameViewShare(G<float>(ctx.ebx + kCameraFov));
 }
 
 constexpr float kNearPlane = 0.08f;  // every camera's, set once at renderer init
@@ -544,6 +564,12 @@ void ParticleFade(X86Context& ctx, uint8_t*) {
     float cut = std::min(G<float>(ctx.edi + kParticleFarCut) * ctx.xmm[1].f[0], G<float>(ctx.edx + kCameraFarCut));
     if (Reach() > 1 && cut > 0) ctx.xmm[3].f[0] *= ctx.xmm[2].f[0] / cut;
 }
+
+constexpr uint32_t kViewportFov = 0x6C;  // a copy of the camera's
+
+// eax the viewport, xmm1 one over its view window width: particle fades scale with it. A wide view ends the
+// fade in before the 0.08 near plane and smoke, fire and trails go
+void ParticleView(X86Context& ctx, uint8_t*) { ctx.xmm[1].f[0] /= GameViewShare(G<float>(ctx.eax + kViewportFov)); }
 
 // ground cover and its patches
 constexpr uint32_t kCoverPatches = 0x28;
