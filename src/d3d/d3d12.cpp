@@ -1485,8 +1485,10 @@ bool D3D12Backend::CreateTargetResource(Target& t, const Surface& s) {
         cv.Format = td.Format;
         t.state = D3D12_RESOURCE_STATE_RENDER_TARGET;
     }
-    if (FAILED(dev_->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td, t.state, &cv, IID_PPV_ARGS(&t.res)))) {
-        LOGE("d3d12: no %ux%u target with %u samples", t.w, t.h, td.SampleDesc.Count);
+    HRESULT hr = dev_->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td, t.state, &cv, IID_PPV_ARGS(&t.res));
+    if (FAILED(hr)) {
+        LOGE("d3d12: no %ux%u target with %u samples, format %u, hr %08X", t.w, t.h, td.SampleDesc.Count,
+             unsigned(td.Format), unsigned(hr));
         return false;
     }
     return true;
