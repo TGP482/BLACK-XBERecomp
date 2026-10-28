@@ -12,7 +12,7 @@ void OnRawInput(void* handle);   // window thread, WM_INPUT
 void ReleaseCursor();            // the game lost the input: the clip goes, held keys wait for release
 void Keyboard(Pad& pad);         // held keys onto port 0's pad
 // raw mouse counts since the last call, scaled by the settings; false when there are none
-bool TakeMouse(float& dx, float& dy);
+bool TakeMouse(float& dx, float& dy, bool aim);
 
 // actions the keyboard and mouse can be bound to, key names comma separated
 // letter, digit and symbol keys bind by position as the US key there; Binding and ButtonKey show the player's labels

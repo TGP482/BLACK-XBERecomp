@@ -49,8 +49,9 @@ float Deflection(float degrees, float full, float curve) {
     return std::copysign(x, degrees);
 }
 
-// xmm2 the stick's zoom scale, under 1 while the view is zoomed in: aiming or a scope
-bool Zoomed(const X86Context& ctx) { return ctx.xmm[2].f[0] < 1.0f; }
+// esi the player's controller, xmm2 the stick's zoom scale: under 1 while zoomed in, and still easing back to 1 after
+// the aim is let go, so the aim wanted decides when the aim sensitivities stop
+bool Zoomed(const X86Context& ctx) { return G<uint8_t>(ctx.esi + kControllerAimWanted) && ctx.xmm[2].f[0] < 1.0f; }
 
 // The gun sways with the right stick: while it rests, the stick that turns the view as fast as the mouse did
 void UpdateSway(X86Context& ctx, float yaw, float pitch) {
@@ -68,11 +69,9 @@ void MouseLook(X86Context& ctx, uint8_t*) {
     float pitch = 0.0f;
     float dx;
     float dy;
-    if (input::TakeMouse(dx, dy)) {
-        const game::Options& o = game::Opt();
-        bool zoomed = Zoomed(ctx);
-        yaw -= dx * kDegrees * (zoomed ? o.aim_horizontal_sensitivity : 1.0f);
-        pitch += dy * kDegrees * (zoomed ? o.aim_vertical_sensitivity : 1.0f);
+    if (input::TakeMouse(dx, dy, Zoomed(ctx))) {
+        yaw -= dx * kDegrees;
+        pitch += dy * kDegrees;
     }
     gyro::Turn turn = gyro::Take(game::Opt().gyro);
     if (!app::MenuOpen()) {
@@ -96,8 +95,8 @@ void StickLook(X86Context& ctx, uint8_t*) {
     if (input::KeyboardActive()) return;
     const game::Options& o = game::Opt();
     bool zoomed = Zoomed(ctx);
-    ctx.xmm[3].f[0] *= o.controller_sensitivity * (zoomed ? o.controller_aim_horizontal_sensitivity : 1.0f);
-    ctx.xmm[0].f[0] *= o.controller_vertical_sensitivity * (zoomed ? o.controller_aim_vertical_sensitivity : 1.0f);
+    ctx.xmm[3].f[0] *= zoomed ? o.controller_aim_horizontal_sensitivity : o.controller_sensitivity;
+    ctx.xmm[0].f[0] *= zoomed ? o.controller_aim_vertical_sensitivity : o.controller_vertical_sensitivity;
 }
 
 // the game drops the aim of a weapon whose zoom is 1 each frame (0x1BB143)

@@ -280,8 +280,8 @@ constexpr Row kSettingsRows[] = {
 const std::vector<Row>& InputRows() {
     static const std::vector<Row> list = [] {
         std::vector<Row> out = {{Kind::Heading, -1, "MOUSE"},
-                                {Kind::Value, kSensitivity, "MOUSE HORIZONTAL SENSITIVITY"},
-                                {Kind::Value, kSensitivityVertical, "MOUSE VERTICAL SENSITIVITY"},
+                                {Kind::Value, kSensitivity, "HORIZONTAL SENSITIVITY"},
+                                {Kind::Value, kSensitivityVertical, "VERTICAL SENSITIVITY"},
                                 {Kind::Value, kAimHorizontal, "AIM HORIZONTAL SENSITIVITY"},
                                 {Kind::Value, kAimVertical, "AIM VERTICAL SENSITIVITY"},
                                 {Kind::Value, kInvertMouseX, "INVERT X AXIS"},
@@ -505,8 +505,18 @@ bool StepGraphicsRow(int id, int step, Settings& s, char (&text)[64]) {
     }
 }
 
-// both sensitivity rows: 0.1 to 5.0 in steps of 0.1
+// 0.1 to 20.0 in steps of 0.1, shown as five times the stored value so the game's own reads 5.0
 void StepSensitivity(float& value, int step, char (&text)[64]) {
+    int shown = std::clamp(int(std::lround(value * 50.0f)), 1, 200);
+    if (step) {
+        shown = StepRange(shown, 1, 200, 1, step);
+        value = float(shown) / 50.0f;
+    }
+    std::snprintf(text, sizeof(text), "%.1f", float(shown) / 10.0f);
+}
+
+// 0.1 to 5.0 in steps of 0.1
+void StepGyroSensitivity(float& value, int step, char (&text)[64]) {
     if (step) {
         int tenths = StepRange(int(std::lround(value * 10.0f)), 1, 50, 1, step);
         value = float(tenths) / 10.0f;
@@ -544,7 +554,8 @@ float* Sensitivity(game::Options& o, int id) {
 void StepInputRow(int id, int step, char (&text)[64]) {
     game::Options& o = game::Opt();
     if (float* sensitivity = Sensitivity(o, id)) {
-        StepSensitivity(*sensitivity, step, text);
+        if (id == kGyroSensitivity) StepGyroSensitivity(*sensitivity, step, text);
+        else StepSensitivity(*sensitivity, step, text);
         return;
     }
     switch (id) {
