@@ -28,7 +28,7 @@ struct Options {
     uint32_t draw_distance = 1;  // times the game's LOD and draw distances
     float mouse_sensitivity = 1.0f;  // horizontal
     float mouse_vertical_sensitivity = 1.0f;
-    float aim_horizontal_sensitivity = 1.0f;  // times the mouse's while the view is zoomed in: aiming and scopes
+    float aim_horizontal_sensitivity = 1.0f;  // while the view is zoomed in: aiming and scopes, in place of the mouse's
     float aim_vertical_sensitivity = 1.0f;
     bool invert_mouse = false;  // the Y axis
     bool invert_mouse_x = false;
@@ -44,7 +44,7 @@ struct Options {
     bool controller_hold_aim = false;  // scopes too; off is the game's own, held to aim and scopes toggled
     float controller_sensitivity = 1.0f;  // horizontal, times the game's right stick look speeds
     float controller_vertical_sensitivity = 1.0f;
-    float controller_aim_horizontal_sensitivity = 1.0f;  // times the stick's while the view is zoomed in
+    float controller_aim_horizontal_sensitivity = 1.0f;  // while the view is zoomed in, in place of the stick's
     float controller_aim_vertical_sensitivity = 1.0f;
     bool invert_controller_x = false;  // the Y axis is the game's own invert look
     float controller_dead_zone = 0.0f;  // 0 the game's own kGameDeadZone

@@ -30,11 +30,6 @@ struct FilterChannel {
         float high = input - low - damping * band;
         band += frequency * high;
         low += frequency * band;
-        if (!std::isfinite(low) || !std::isfinite(band)) {
-            low = 0;
-            band = 0;
-            return 0;
-        }
         if (std::fabs(low) < 1e-20f) low = 0;  // no denormals on silent voices
         if (std::fabs(band) < 1e-20f) band = 0;
         return std::clamp(low, -1.0f, 1.0f);
@@ -49,7 +44,9 @@ struct VoiceFilter {
     bool Set(uint32_t mode, const uint32_t coefficients[4], bool is3d, uint32_t channels) {
         bool mono_peq = mode == kFilterI3dl2 && !is3d && channels == 1;
         if (mode == kFilterPeq || mono_peq) return false;
+        bool was_enabled = enabled;
         enabled = mode == kFilterDls2;
+        if (enabled && !was_enabled) Reset();  // no tail left over from the last time it was on
         channel[0].Configure(coefficients[0], coefficients[1]);
         channel[1].Configure(coefficients[2], coefficients[3]);
         return true;
