@@ -26,7 +26,6 @@ using flash::Type;
 
 // degrees a count at sensitivity 1
 constexpr float kDegrees = 0.05f;
-constexpr float kHalfRadians = 3.14159265f / 360.0f;  // degrees to radians of half the angle
 
 // the player's controller: yaw positive left, pitch positive down, in degrees
 constexpr uint32_t kControllerYaw = 0x18;
@@ -41,19 +40,6 @@ constexpr uint32_t kControllerCurve = 0xC8;
 // the right stick this frame, turn left and turn up; the gun's sway reads them as player+0x5C8 and +0x5CC
 constexpr uint32_t kControllerStickYaw = 0xD8;
 constexpr uint32_t kControllerStickPitch = 0xDC;
-
-// camera: the view's degrees, as FieldOfView leaves them
-constexpr uint32_t kCamera = 0x2D12B8;
-constexpr uint32_t kCameraFov = 0x750;
-
-// the view's tangent over that of the view from the hip: a count turns the same share of the view zoomed or not
-float ViewZoom() {
-    uint32_t camera = R32(kCamera);
-    float fov = camera ? G<float>(camera + kCameraFov) : 0.0f;
-    if (!(fov > 0 && fov < 180)) return 1.0f;
-    float hip = float(std::clamp(game::Opt().fov, 45u, 140u));  // the range FieldOfView takes
-    return std::tan(fov * kHalfRadians) / std::tan(hip * kHalfRadians);
-}
 
 // the stick deflection that turns as far through the game's curve, full the turn of a full stick
 float Deflection(float degrees, float full, float curve) {
@@ -96,9 +82,7 @@ void MouseLook(X86Context& ctx, uint8_t*) {
         if (turn.recenter) G<float>(ctx.esi + kControllerPitch) = 0.0f;  // level
     }
     if (yaw == 0.0f && pitch == 0.0f) return;
-    float zoom = ViewZoom();
-    yaw = std::remainder(yaw * zoom, 360.0f);
-    pitch *= zoom;
+    yaw = std::remainder(yaw, 360.0f);
     G<float>(ctx.esi + kControllerYaw) += yaw;
     G<float>(ctx.esi + kControllerPitch) += pitch;
     UpdateSway(ctx, yaw, pitch);

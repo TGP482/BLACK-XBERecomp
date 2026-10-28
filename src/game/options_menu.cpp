@@ -92,7 +92,7 @@ struct Host {
 };
 constexpr Host kHosts[] = {
     {"OptionsMenuXbox", "TextAnim", "_level4.Main.TextAnim.ControllerSetup_Text", "Playerprofile_Text", 25.0f,
-     "controllerButton", "Playerprofile", 25.0f, -37.0f, 185.0f, 0.9f, nullptr,
+     "controllerButton", "Playerprofile", 25.0f, 0.0f, 185.0f, 0.9f, nullptr,
      {"ControllerSetup_Text", "SoundSetup_Text", "PictureSetup_Text", "Playerprofile_Text"},
      {1.0f, 245.0f, 445.0f, -5.0f}, {}, {}, 0.0f},
     {"PauseMenuOptionXbox", nullptr, "_level4.Main.ToggleCrouch", "ToggleCrouch", 222.0f,
