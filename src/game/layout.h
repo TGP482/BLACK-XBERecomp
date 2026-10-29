@@ -43,6 +43,7 @@ constexpr uint32_t kDisplayHeight = 0xD42C;
 constexpr uint32_t kDisplayViewWidth = 0xD4C0;
 constexpr uint32_t kDisplayAspect = 0xD4C4;
 constexpr uint32_t kDisplayDrawLists = 0xCA6C;
+constexpr uint32_t kAlphaDrawList = 2;  // the alpha blended meshes, drawn with the scene's camera
 constexpr uint32_t kGunDrawList = 5;  // the first person models
 // draw list
 constexpr uint32_t kDrawListSize = 0x18;

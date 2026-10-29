@@ -18,6 +18,7 @@ black.toml
 /logs/
 /hdd/
 /CrashDumps/
+/artifacts/
 
 # editors
 .vs/

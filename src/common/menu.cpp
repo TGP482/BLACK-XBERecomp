@@ -30,6 +30,7 @@
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
 #include "common/translations.h"
+#include "game/weapons.h"
 
 namespace app {
 
@@ -239,10 +240,29 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
              kGyroCalibrate, kColourBlind, kSensitivityVertical, kAimHorizontal, kAimVertical, kInvertMouseX,
              kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX, kTextureReplacement,
-             kTextureDumping, kDumpFormat, kDeadZone };
+             kTextureDumping, kDumpFormat, kDeadZone,
+             kInfiniteAmmo, kInfiniteGrenades, kRapidFire, kNoRecoil, kGodMode, kOneHitKill,
+             kEsp, kAimbot, kGameSpeed, kUnlockLevels, kUnlockBlackOps };
 
 using rows::Kind;
 using rows::Row;
+
+constexpr Row kCheatRows[] = {
+    {Kind::Heading, -1, "WEAPONS"},
+    {Kind::Value, kInfiniteAmmo, "INFINITE AMMO"},
+    {Kind::Value, kInfiniteGrenades, "INFINITE GRENADES"},
+    {Kind::Value, kRapidFire, "RAPID FIRE"},
+    {Kind::Value, kNoRecoil, "NO RECOIL"},
+    {Kind::Heading, -1, "PLAYER"},
+    {Kind::Value, kGodMode, "GOD MODE"},
+    {Kind::Value, kOneHitKill, "ONE-HIT KILL"},
+    {Kind::Value, kEsp, "ESP LINES"},
+    {Kind::Value, kAimbot, "AIMBOT (WHILE AIMING IN)"},
+    {Kind::Heading, -1, "GAME"},
+    {Kind::Value, kGameSpeed, "GAME SPEED"},
+    {Kind::Value, kUnlockLevels, "UNLOCK ALL MISSIONS"},
+    {Kind::Value, kUnlockBlackOps, "UNLOCK BLACK OPS"},
+};
 
 constexpr Row kSettingsRows[] = {
     {Kind::Heading, -1, "DISPLAY"},
@@ -339,6 +359,15 @@ bool* ToggleFlag(Settings& s, int id) {
         case kControllerHoldAim: return &o.controller_hold_aim;
         case kGyroAiming: return &o.gyro.enabled;
         case kAimAssist: return &o.aim_assist;
+        case kInfiniteAmmo: return &o.infinite_ammo;
+        case kNoRecoil: return &o.no_recoil;
+        case kGodMode: return &o.god_mode;
+        case kOneHitKill: return &o.one_hit_kill;
+        case kInfiniteGrenades: return &o.infinite_grenades;
+        case kUnlockLevels: return &o.unlock_levels;
+        case kUnlockBlackOps: return &o.unlock_black_ops;
+        case kEsp: return &o.esp;
+        case kAimbot: return &o.aimbot;
         default: return nullptr;
     }
 }
@@ -505,6 +534,24 @@ bool StepGraphicsRow(int id, int step, Settings& s, char (&text)[64]) {
     }
 }
 
+// the cheat rows that are no ON / OFF, stepped first; false for another row
+bool StepCheatRow(int id, int step, char (&text)[64]) {
+    game::Options& o = game::Opt();
+    switch (id) {
+        case kRapidFire:
+            if (step) o.rapid_fire = uint32_t(StepRange(int(o.rapid_fire), 1, 4, 1, step));
+            if (o.rapid_fire <= 1) std::snprintf(text, sizeof(text), "OFF");
+            else std::snprintf(text, sizeof(text), "%uX", o.rapid_fire);
+            return true;
+        case kGameSpeed:
+            if (step) o.game_speed = uint32_t(StepRange(int(o.game_speed), 25, 200, 25, step));
+            std::snprintf(text, sizeof(text), o.game_speed == 100 ? "%u%% (DEFAULT)" : "%u%%", o.game_speed);
+            return true;
+        default:
+            return false;
+    }
+}
+
 // 0.1 to 20.0 in steps of 0.1, shown as five times the stored value so the game's own reads 5.0
 void StepSensitivity(float& value, int step, char (&text)[64]) {
     int shown = std::clamp(int(std::lround(value * 50.0f)), 1, 200);
@@ -622,7 +669,7 @@ std::string RowText(int id, int step, Settings& s = Get()) {
     if (bool* on = ToggleFlag(s, id)) {
         Flip(*on, step);
         std::snprintf(text, sizeof(text), "%s", OnOff(*on));
-    } else if (!StepDisplayRow(id, step, s, text) && !StepGraphicsRow(id, step, s, text)) {
+    } else if (!StepDisplayRow(id, step, s, text) && !StepGraphicsRow(id, step, s, text) && !StepCheatRow(id, step, text)) {
         StepInputRow(id, step, text);
     }
     if (step && &s == &Get()) Changed(DisplayRow(id));
@@ -637,10 +684,11 @@ std::string KeyText(std::string keys) {
     return keys;
 }
 
-const char* const kPages[] = {"RECOMP SETTINGS", "MOUSE AND KEYBOARD", "CONTROLLER"};
+const char* const kPages[] = {"RECOMP SETTINGS", "MOUSE AND KEYBOARD", "CONTROLLER", "CHEATS"};
 constexpr int kSettingsPage = 0;
 constexpr int kKeyboardPage = 1;
 constexpr int kControllerPage = 2;
+constexpr int kCheatsPage = 3;
 
 // the MOUSE AND KEYBOARD page's values, its binds aside
 void CopyKeyboardValues(game::Options& to, const game::Options& from) {
@@ -671,6 +719,21 @@ void RestoreDefaults(int page) {
     game::Options& o = game::Opt();
     if (page == kControllerPage) {
         CopyControllerValues(o, game::Options{});
+        Save();
+        return;
+    }
+    if (page == kCheatsPage) {
+        o.infinite_ammo = false;
+        o.rapid_fire = 1;
+        o.no_recoil = false;
+        o.game_speed = 100;
+        o.god_mode = false;
+        o.one_hit_kill = false;
+        o.infinite_grenades = false;
+        o.unlock_levels = false;
+        o.unlock_black_ops = false;
+        o.esp = false;
+        o.aimbot = false;
         Save();
         return;
     }
@@ -816,6 +879,38 @@ void KeyRow(const Row& r) {
     g_capture_armed = false;
 }
 
+void DrawWeapons() {
+    weapons::View v = weapons::Current();
+    Section("GIVE A WEAPON");
+    if (!v.in_level) {
+        ImGui::PushStyleColor(ImGuiCol_Text, kDim);
+        ImGui::TextWrapped("%s", Ui("Start or continue a level to choose its weapons.", false).c_str());
+        ImGui::PopStyleColor();
+        return;
+    }
+    constexpr int kColumns = 3;
+    float gap = ImGui::GetStyle().ItemSpacing.x;
+    float w = (ImGui::GetContentRegionAvail().x - gap * (kColumns - 1)) / kColumns;
+    for (size_t i = 0; i < v.choices.size(); i++) {
+        const weapons::Choice& c = v.choices[i];
+        if (i % kColumns) ImGui::SameLine();
+        ImGui::PushID(c.type);
+        if (c.held) ImGui::PushStyleColor(ImGuiCol_Text, kHeading);  // in one of the two slots now
+        if (ImGui::Button(c.label.c_str(), ImVec2(w, 0))) weapons::Give(c.type);
+        if (c.held) ImGui::PopStyleColor();
+        ImGui::PopID();
+    }
+    Section("AMMUNITION");
+    if (ImGui::Button(Ui("FILL AMMUNITION").c_str(), ImVec2(w, 0))) weapons::FillAmmo();
+    if (!v.status.empty()) {
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, kDim);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(v.status.c_str());
+        ImGui::PopStyleColor();
+    }
+}
+
 void DrawRows(int page) {
     size_t count = 0;
     const Row* list = rows::Page(page, &count);
@@ -825,6 +920,7 @@ void DrawRows(int page) {
         else if (r.kind == Kind::Value) ValueRow(r);
         else KeyRow(r);
     }
+    if (page == kCheatsPage) DrawWeapons();
 }
 
 void Defaults() {
@@ -879,6 +975,7 @@ void DrawFooter(float em) {
     const char* hint = "";
     if (g_capture >= 0) hint = "Press a key or mouse button to bind, Escape cancels";
     else if (g_page == kKeyboardPage && g_hovered_box >= 0) hint = "Right click or Delete clears the key";
+    else if (g_page == kCheatsPage) hint = "A weapon replaces the one not in hand, gold names are held";
     ImGui::TextUnformatted(Ui(hint, false).c_str());
     ImGui::PopStyleColor();
     float bw = em * 8;
@@ -930,6 +1027,10 @@ const rows::Row* rows::Page(int page, size_t* count) {
     if (page == kControllerPage) {
         *count = std::size(kControllerRows);
         return kControllerRows;
+    }
+    if (page == kCheatsPage) {
+        *count = std::size(kCheatRows);
+        return kCheatRows;
     }
     static const std::vector<Row> rows = [] {
         std::vector<Row> out(std::begin(kSettingsRows), std::end(kSettingsRows));
