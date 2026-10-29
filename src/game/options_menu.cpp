@@ -54,6 +54,12 @@ constexpr float kBarLeft = -5.0f;  // the box's left end and the left tick
 constexpr float kTickGap = 10.0f;  // past the end of the widest value
 constexpr float kNameGap = 12.0f;  // between the widest name and the values
 
+// TextAnim's flashes on the stock rows as the page opens, by depth: an 8 wide square scaled 30 about x 112.3
+constexpr int kFlashFirst = 9;
+constexpr int kFlashLast = 21;
+constexpr float kFlashLeft = -7.7f;
+constexpr float kFlashWidth = 240.0f;
+
 // the rows' font, as the name entry's caret measures it
 constexpr uint32_t kFindFont = 0x13CD0;   // stdcall (game object, name): a font
 constexpr uint32_t kFontName = 0x28E63C;  // "Eurostile LT Std"
@@ -82,6 +88,7 @@ struct Host {
     float name_x;
     float value_x;
     float scale;
+    float lit;                 // the name's scale once focused, its HighlightFrame
     const char* hint;          // the string of a prompt our buttons take the place of
     const char* stock[14];     // what the rows take the place of
     Bar bar;
@@ -89,20 +96,21 @@ struct Host {
     const char* prompts[kPrompts];
     float prompt_x[kPrompts];
     float prompt_y;
+    bool flashes;  // TextAnim flashes a box on each stock row
 };
 constexpr Host kHosts[] = {
     {"OptionsMenuXbox", "TextAnim", "_level4.Main.TextAnim.ControllerSetup_Text", "Playerprofile_Text", 25.0f,
-     "controllerButton", "Playerprofile", 25.0f, 0.0f, 185.0f, 0.9f, nullptr,
+     "controllerButton", "Playerprofile", 25.0f, 0.0f, 185.0f, 0.9f, 1.1f, nullptr,
      {"ControllerSetup_Text", "SoundSetup_Text", "PictureSetup_Text", "Playerprofile_Text"},
-     {1.0f, 245.0f, 445.0f, -5.0f}, {}, {}, 0.0f},
+     {1.0f, 245.0f, 445.0f, -5.0f}, {}, {}, 0.0f, true},
     {"PauseMenuOptionXbox", nullptr, "_level4.Main.ToggleCrouch", "ToggleCrouch", 222.0f,
-     "toggleCrouchButton", "musicVolumeButton", 27.0f, 0.0f, 245.0f, 1.0f, "$FE_SELECT",
+     "toggleCrouchButton", "musicVolumeButton", 27.0f, 0.0f, 245.0f, 1.0f, 1.0f, "$FE_SELECT",
      {"ToggleCrouch", "ToggleCrouchOn_Text", "ToggleCrouchOff_Text", "InvertLook", "InvertLookOn_Text",
       "InvertLookOff_Text", "Vibration", "VibrationOn_Text", "VibrationOff_Text", "SFXVolume", "Sound_Volume",
       "MusicVolume", "Music_Volume"},
      {1.4f, 343.55f, 443.55f, 168.35f},
      // stage y 458 under the third button's bar (to 441), the screen ends at 480
-     {"_level4.Main.ConfirmPrompt", "_level4.Main.BackPrompt"}, {-16.0f, 164.0f}, 306.0f},
+     {"_level4.Main.ConfirmPrompt", "_level4.Main.BackPrompt"}, {-16.0f, 164.0f}, 306.0f, false},
 };
 
 // a text the page shows from here: its string id, the text, the data of the field showing it
@@ -379,13 +387,13 @@ float Measure(uint32_t font, const std::string& text) {
     return G<float>(font + kFontScale) * end;
 }
 
-// the stock column, further right when a name would run into it
+// the stock column, further right when a focused name would run into it
 float ValueColumn(X86Context& ctx, const Page& p) {
     const Host& h = *p.host;
     uint32_t font = CallGuest(ctx, kFindFont, {R32(kGame), kFontName});
     float widest = 0.0f;
     for (const Row* row : p.rows) widest = std::max(widest, Measure(font, NameText(row)));
-    float name_end = h.name_x + (kTextLeft + widest * kTextHeight) * h.scale;
+    float name_end = h.name_x + (kTextLeft + widest * kTextHeight) * h.scale * h.lit;
     return std::max(h.value_x, name_end + kNameGap);
 }
 
@@ -403,14 +411,13 @@ float Reach(X86Context& ctx, const Page& p, uint32_t focus) {
     return p.value_x - h.name_x + (kTextLeft + widest * kTextHeight) * scale + kTickGap;
 }
 
-// the bar on the focused row reaches past the values, its ends and line as stock
-void StretchBar(X86Context& ctx, const Page& p, uint32_t root, uint32_t focus) {
+// the bar on the focused row reaches right, past the values, its ends and line as stock
+void StretchBar(X86Context& ctx, const Page& p, uint32_t root, float right) {
     const Bar& stock = p.host->bar;
     uint32_t bar = Member(ctx, Member(ctx, root, "Main"), "ButtonSelector");
     if (flash::Type(bar) != flash::kSprite) return;
     uint32_t data = R32(bar + flash::kClipData);
     if (!data || data == flash::kNoData || R32(data + flash::kDataFrame) != kBarRest) return;
-    float right = std::max(stock.tick, Reach(ctx, p, focus));
     float stretch = (right - kBarLeft) / (stock.tick - kBarLeft);
     int left = 256;
     for (uint32_t part = flash::FirstChild(bar); part && left; part = R32(part + flash::kClipNext), left--) {
@@ -422,6 +429,20 @@ void StretchBar(X86Context& ctx, const Page& p, uint32_t root, uint32_t focus) {
             G<float>(part + flash::kClipScaleX) = stretch;
             G<float>(part + flash::kClipX) = kBarLeft + (stock.scan - kBarLeft) * stretch;
         }
+    }
+}
+
+// the flashes reach as far past the stock bar as the bar does, their left ends kept
+void StretchFlashes(const Page& p, uint32_t holder, float right) {
+    float scale = 1.0f + (right - p.host->bar.tick) / kFlashWidth;
+    int left = 256;
+    for (uint32_t part = flash::FirstChild(holder); part && left; part = R32(part + flash::kClipNext), left--) {
+        int depth = flash::Depth(part);
+        if (depth < kFlashFirst || depth > kFlashLast) continue;
+        float& x = G<float>(part + flash::kClipX);
+        float& now = G<float>(part + flash::kClipScaleX);
+        x += (now - scale) * kFlashLeft;
+        now = scale;
     }
 }
 
@@ -603,7 +624,10 @@ void Tick(X86Context& ctx, uint32_t ui) {
         UpdateRow(ctx, ui, slot, id, clear);
     }
     UpdateTexts(p);
-    if (slot < p.slots) StretchBar(ctx, p, root, focus);
+    if (slot >= p.slots) return;
+    float right = std::max(p.host->bar.tick, Reach(ctx, p, focus));
+    StretchBar(ctx, p, root, right);
+    if (p.host->flashes) StretchFlashes(p, holder, right);
 }
 
 }  // namespace

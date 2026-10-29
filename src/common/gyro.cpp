@@ -223,7 +223,7 @@ void EnableSensors() {
         if (SDL_GamepadSensorEnabled(pad, SDL_SENSOR_GYRO)) continue;
         SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_GYRO, true);
         SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_ACCEL, true);
-        LOGI("gyro: %s", SDL_GetGamepadName(pad));
+        LOGR("gyro: %s", SDL_GetGamepadName(pad));
     }
     SDL_free(ids);
 }
