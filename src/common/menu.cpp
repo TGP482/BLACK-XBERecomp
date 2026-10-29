@@ -682,6 +682,7 @@ void RestoreDefaults(int page) {
     game::Options keep = o;
     Get() = Settings{};
     Get().custom_textures = game::kCustomTexturesDefault;
+    Get().fps_cap = kFpsCapRefresh;
     o = game::Options{};
     CopyKeyboardValues(o, keep);
     CopyControllerValues(o, keep);
