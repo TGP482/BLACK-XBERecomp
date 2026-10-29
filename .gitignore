@@ -18,6 +18,9 @@ black.toml
 /logs/
 /hdd/
 /CrashDumps/
+/compatdata/
+vkd3d-proton.cache
+vkd3d-proton.cache.write
 
 # editors
 .vs/
