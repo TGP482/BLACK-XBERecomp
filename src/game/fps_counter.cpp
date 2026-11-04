@@ -19,6 +19,10 @@ using flash::kClipNext;
 using flash::kClipX;
 using flash::kClipY;
 
+namespace game {
+void DrawEsp(X86Context& ctx, float unit);  // esp.cpp
+}
+
 namespace {
 
 // the game's 2D layer: Text(font, wide text, x, y, size, rgba floats), viewport pixels from the top left
@@ -132,16 +136,18 @@ void DrawOverlay(X86Context& ctx, uint8_t*) {
     float w = float(R32(viewport + kViewportWidth));
     float h = float(R32(viewport + kViewportHeight));
     bool fps = game::Opt().fps_counter;
+    bool esp = game::Opt().esp;
     const TitlePage* title = CurrentTitlePage();
     std::optional<float> slide = title ? LegendSlide(*title) : std::nullopt;
     bool watermark = slide.has_value();
-    if (!(fps || watermark) || !font || !(h > 0)) return;
+    if (!(fps || watermark || esp) || !font || !(h > 0)) return;
     View view{h / 480, w / h / game::Aspect()};
     float& width = G<float>(font + kFontScale);
     float game_width = width;
     float output_width = game::Aspect() * 480;
     float watermark_x = output_width - kWatermarkRight - TextWidth(font, kWatermark) + slide.value_or(0.0f);
     CallGuest(ctx, kBegin, {});
+    if (esp) game::DrawEsp(ctx, view.unit);
     width = game_width * view.narrow;
     if (fps) {
         char text[32];

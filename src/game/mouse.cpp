@@ -63,8 +63,11 @@ void UpdateSway(X86Context& ctx, float yaw, float pitch) {
     G<float>(c + kControllerStickPitch) = Deflection(-pitch, frame * G<float>(c + kControllerPitchSpeed), curve);
 }
 
+namespace game { void Aimbot(X86Context& ctx); }
+
 // esi the player's controller. The game adds the stick, clamps the pitch and wraps the yaw after this.
 void MouseLook(X86Context& ctx, uint8_t*) {
+    game::Aimbot(ctx);
     float yaw = 0.0f;
     float pitch = 0.0f;
     float dx;

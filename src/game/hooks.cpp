@@ -102,7 +102,10 @@ void AfterCreateDevice(X86Context& ctx, uint8_t* base) {
 
 constexpr uint32_t kFrameCount = 0x2F4368;
 
-// seconds the last frame took, the frame time the game was made for at most
+// the game speed cheat: the game's steps take this share of the real time
+static float Speed() { return float(std::clamp(game::Opt().game_speed, 25u, 200u)) / 100.0f; }
+
+// seconds the last frame took, the frame time the game was made for at most, at the game speed
 static float FrameTime() {
     using clock = std::chrono::steady_clock;
     static clock::time_point last;
@@ -114,7 +117,7 @@ static float FrameTime() {
         frame = f;
         last = now;
     }
-    return dt;
+    return dt * Speed();
 }
 
 // The game's timers step one fixed frame time a frame: they step the real one, so any frame rate plays at speed
@@ -137,7 +140,9 @@ X86_FUNC(sub_000BE3F0) {
 X86_FUNC(sub_001F9130) { Return(ctx, ctx.eax, 1); }
 
 // The Flash menus and HUD tick in milliseconds, 33 a call: the real ones, the part of one carried over
+void WeaponsTick(X86Context& ctx);  // weapons.cpp: the weapons page's requests
 void MenuTick(X86Context& ctx, uint8_t*) {
+    WeaponsTick(ctx);
     using clock = std::chrono::steady_clock;
     static clock::time_point last;
     static float carry;
@@ -215,10 +220,13 @@ void LodTangent(X86Context& ctx, uint8_t*) {
 
 constexpr float kNearPlane = 0.08f;  // every camera's, set once at renderer init
 
+namespace game { void EspCamera(); }
+
 // The list of the first person models, gun, arms and muzzle mesh: drawn at the viewmodel setting.
 // Wider than the game's 70 it shows parts nearer than the near plane, which are kept
 X86_EXTERN_FUNC(__imp__sub_00176F60);
 X86_FUNC(sub_00176F60) {
+    if (ctx.esi == R32(kDisplay) + kDisplayDrawLists + kAlphaDrawList * kDrawListSize) game::EspCamera();
     bool list = ctx.esi == R32(kDisplay) + kDisplayDrawLists + kGunDrawList * kDrawListSize;
     bool scale = list && g_gun != 1;
     bool keep_near = list && game::Opt().viewmodel_fov > kGameFov;
@@ -293,8 +301,12 @@ X86_FUNC(sub_001D2860) {
     if (g_gun != 1 && (from == kFromTracerA || from == kFromTracerB)) OnGun(out + kMatrixPosition, true);
 }
 
-// recoil dies away by a factor a frame
-void RecoilDecay(X86Context& ctx, uint8_t*) { ctx.xmm[0].f[0] = std::pow(ctx.xmm[0].f[0], FrameShare()); }
+// Recoil dies away by a factor a frame. ebx the player: the kick a shot leaves (0x1EFE58) is spent here before
+// it reaches the view, the cheat makes it nothing
+void RecoilDecay(X86Context& ctx, uint8_t*) {
+    bool none = game::Opt().no_recoil && ctx.ebx == Player();
+    ctx.xmm[0].f[0] = none ? 0.0f : std::pow(ctx.xmm[0].f[0], FrameShare());
+}
 
 constexpr uint32_t kDataSwayShares = 0x104;
 
@@ -335,6 +347,39 @@ static bool g_idle_early;
 // weapon
 constexpr uint32_t kWeaponState = 0xD8;
 constexpr uint32_t kWeaponWait = 0xDC;
+constexpr uint32_t kWeaponAmmo = 0xF4;
+constexpr uint32_t kWeaponAltAmmo = 0xF8;  // the grenades under the barrel
+// ammo: a shot takes one from each (0x1EFBBB)
+constexpr uint32_t kAmmoTotal = 0x14;
+constexpr uint32_t kAmmoClip = 0x18;
+
+// the cheat: what the player's weapon had before its update, put back where it went down. A reload moves rounds
+// from the reserve to the magazine, the reserve is put back too
+struct KeptAmmo {
+    uint32_t ammo = 0;
+    uint32_t total = 0;
+    uint16_t clip = 0;
+};
+
+static KeptAmmo KeepAmmo(uint32_t weapon) {
+    uint32_t ammo = R32(weapon + kWeaponAmmo);
+    if (!game::Opt().infinite_ammo || !ammo || R32(weapon + kWeaponOwner) != Player()) return {};
+    return {ammo, R32(ammo + kAmmoTotal), G<uint16_t>(ammo + kAmmoClip)};
+}
+
+// the rounds a weapon has left in all: a shot of either barrel takes one (0x1EFBC5, 0x1EFEED)
+static uint32_t Rounds(uint32_t weapon) {
+    uint32_t rounds = 0;
+    for (uint32_t at : {kWeaponAmmo, kWeaponAltAmmo})
+        if (uint32_t ammo = R32(weapon + at)) rounds += R32(ammo + kAmmoTotal);
+    return rounds;
+}
+
+static void RestoreAmmo(uint32_t weapon, const KeptAmmo& kept) {
+    if (!kept.ammo || R32(weapon + kWeaponAmmo) != kept.ammo) return;
+    if (R32(kept.ammo + kAmmoTotal) < kept.total) W32(kept.ammo + kAmmoTotal, kept.total);
+    if (G<uint16_t>(kept.ammo + kAmmoClip) < kept.clip) G<uint16_t>(kept.ammo + kAmmoClip) = kept.clip;
+}
 
 // the wait between a weapon's shots. The frame of a first shot is part of it: the fire clip runs that frame too
 // and holds its next shot where the wait ends
@@ -344,8 +389,15 @@ X86_FUNC(sub_001EEFD0) {
     float& wait = G<float>(weapon + kWeaponWait);
     float rest = wait;
     float dt = Dt();
+    KeptAmmo kept = KeepAmmo(weapon);
+    uint32_t rounds = Rounds(weapon);
     __imp__sub_001EEFD0(ctx, base);
+    bool shot = Rounds(weapon) < rounds;
+    RestoreAmmo(weapon, kept);
     uint32_t me = R32(weapon + kWeaponOwner);
+    // the rapid fire cheat: a shot's wait, its fire mode's +0x20, is that many times shorter
+    uint32_t faster = std::clamp(game::Opt().rapid_fire, 1u, 4u);
+    if (shot && me == Player() && wait > 0) wait /= float(faster);
     if (me == Player()) {
         if (R32(weapon + kWeaponState) != 1 || wait != rest) g_idle_early = false;
         else if (g_idle_early) W32(me + kPlayerFireRequest, 0);  // the fire request is spent, as on the console
