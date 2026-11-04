@@ -196,7 +196,10 @@ void Load(const void* table) {
 
 // after the settings load, before boot
 void Init() {
-    if (!g_settings_read) app::Get().custom_textures = kCustomTexturesDefault;
+    if (!g_settings_read) {
+        app::Get().custom_textures = kCustomTexturesDefault;
+        app::Get().fps_cap = app::kFpsCapRefresh;
+    }
     BootLanguage();  // latched before the panel can change the setting
     input::LoadBindings();
     audio::SetOutputMode(Opt().audio_output);

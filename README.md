@@ -36,6 +36,11 @@ This port was created using the [Xbox XBE Recomp](https://github.com/TGP482/Xbox
 - **Ambient Occlusion** - Adds screen space ambient occlusion, creating soft contact shadows where surfaces meet. Choose between SSAO and GTAO.
 - **Reload Blur** - Toggles the blur effect while reloading.
 
+### Textures
+- **Texture Replacement** - Replaces the game's textures with the `.dds` or `.png` images in the `textures\replacement` folder beside the exe.
+- **Texture Dumping** - Saves every texture the game uses into the `textures\dumps` folder beside the exe.
+- **Dump Format** - Choose between PNG or DDS, which keeps the original compression and mipmaps.
+
 ### Input
 - **Mouse and Keyboard** - Full keyboard and mouse support with raw input, adjustable horizontal and vertical sensitivity, inverted look and rebindable controls.
 - **Controller** - Controller with SDL3 support and additional features.
@@ -44,11 +49,6 @@ This port was created using the [Xbox XBE Recomp](https://github.com/TGP482/Xbox
 ### General
 - **Skip Intro** - Skips the intro logos.
 - **Pause On Focus Loss** - Pauses the game and its sound while the window is in the background or minimized.
-
-### Textures
-- **Texture Replacement** - Replaces the game's textures with the `.dds` or `.png` images in the `textures\replacement` folder beside the exe.
-- **Texture Dumping** - Saves every texture the game uses into the `textures\dumps` folder beside the exe.
-- **Dump Format** - Choose between PNG or DDS, which keeps the original compression and mipmaps.
 
 ### Miscellaneous
 - **Custom Menu Cursor** - Place a `cursor.png` (or `cursor.dds`) beside the exe to replace the Windows arrow in the game's menus.
