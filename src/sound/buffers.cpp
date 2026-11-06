@@ -62,6 +62,7 @@ BUFFER(SetBufferData, 3) {
     }
     v.data = a[1];
     if (!a[1] && a[2]) v.data = v.owned = mem::AllocContiguous(a[2], 0, 0xFFFFFFFF, 4);  // a size with no data
+    v.filter.Reset();
     v.bytes = v.play_len = v.loop_len = a[2];
     v.play_start = v.loop_start = 0;
     v.pos = 0;
@@ -69,6 +70,7 @@ BUFFER(SetBufferData, 3) {
     return 0;
 }
 BUFFER(Play, 4) {
+    if (!v.playing || (a[3] & 2)) v.filter.Reset();
     v.playing = true;
     v.looping = a[3] & 1;
     if (a[3] & 2) v.pos = 0;
@@ -140,7 +142,7 @@ BUFFER(SetFrequency, 2) {
     v.freq = a[1];
     return 0;
 }
-BUFFER(SetFilter, 2) { return 0; }
+BUFFER(SetFilter, 2) { return SetFilter(v, a[1]); }
 BUFFER(SetHeadroom, 2) {
     v.headroom = Db(-int32_t(a[1]));
     return 0;

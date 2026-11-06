@@ -64,6 +64,7 @@ HLE_STDCALL(DirectSoundCreateStream, 2) {
 static void FlushStream(Voice& v) {
     for (auto& pk : v.packets) Complete(v, pk, kFlushed);
     v.packets.clear();
+    v.filter.Reset();
     v.pos = 0;
     for (auto it = g_done.begin(); it != g_done.end();) {
         if (it->voice != v.obj) {
@@ -110,6 +111,7 @@ STREAM(Process, 3) {
     Packet pk{R32(in), R32(in + 4), R32(in + 8), R32(in + 12), R32(in + 16)};
     if (pk.completed_ptr) W32(pk.completed_ptr, 0);
     if (pk.status_ptr) W32(pk.status_ptr, kPacketPending);
+    if (!v.active) v.filter.Reset();
     v.packets.push_back(pk);
     v.active = true;
     v.ending = false;
@@ -142,7 +144,7 @@ STREAM(SetFrequency, 2) {
     v.freq = a[1];
     return 0;
 }
-STREAM(SetFilter, 2) { return 0; }
+STREAM(SetFilter, 2) { return SetFilter(v, a[1]); }
 STREAM(SetHeadroom, 2) {
     v.headroom = Db(-int32_t(a[1]));
     return 0;

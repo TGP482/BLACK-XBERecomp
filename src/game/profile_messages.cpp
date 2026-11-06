@@ -1,5 +1,8 @@
 // Profile messages such as LOADING or SAVING. The game holds each one for 3.2 seconds (0x1F3140) and only then
 // looks at the work behind it; the hold is now 1 second, or longer while that work is still running.
+// The profile save's name is English in every language.
+#include <cstring>
+
 #include "xdk/hle.h"
 
 using namespace kernel;
@@ -22,7 +25,25 @@ bool WorkFinished(uint32_t manager) {
     return state == kWorkDone || state == kWorkFailed;
 }
 
+// FE_MCSAVE_PROFILE, the name the save is made and found by (0x1F78EC)
+constexpr uint32_t kSaveName = 0x7D0DDAB7;
+
 }  // namespace
+
+namespace game {
+
+// prompts.cpp: the save's name, or a profile made in one language is not found in another
+uint32_t SaveName(uint32_t id) {
+    if (id != kSaveName) return 0;
+    static const uint32_t name = [] {
+        uint32_t at = mem::AllocSystem(sizeof("Profile"));
+        if (at) std::memcpy(HostPtr(at), "Profile", sizeof("Profile"));
+        return at;
+    }();
+    return name;
+}
+
+}  // namespace game
 
 // shows a message (esi manager, edx text) and starts its hold
 X86_EXTERN_FUNC(__imp__sub_001F3140);

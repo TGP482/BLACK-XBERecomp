@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstring>
 
+#include "common/gyro.h"
+#include "common/menu.h"
 #include "common/mouse_keyboard.h"
 #include "common/options.h"
 #include "core/log.h"
@@ -24,7 +26,6 @@ using flash::Type;
 
 // degrees a count at sensitivity 1
 constexpr float kDegrees = 0.05f;
-constexpr float kHalfRadians = 3.14159265f / 360.0f;  // degrees to radians of half the angle
 
 // the player's controller: yaw positive left, pitch positive down, in degrees
 constexpr uint32_t kControllerYaw = 0x18;
@@ -40,19 +41,6 @@ constexpr uint32_t kControllerCurve = 0xC8;
 constexpr uint32_t kControllerStickYaw = 0xD8;
 constexpr uint32_t kControllerStickPitch = 0xDC;
 
-// camera: the view's degrees, as FieldOfView leaves them
-constexpr uint32_t kCamera = 0x2D12B8;
-constexpr uint32_t kCameraFov = 0x750;
-
-// the view's tangent over that of the view from the hip: a count turns the same share of the view zoomed or not
-float ViewZoom() {
-    uint32_t camera = R32(kCamera);
-    float fov = camera ? G<float>(camera + kCameraFov) : 0.0f;
-    if (!(fov > 0 && fov < 180)) return 1.0f;
-    float hip = float(std::clamp(game::Opt().fov, 45u, 140u));  // the range FieldOfView takes
-    return std::tan(fov * kHalfRadians) / std::tan(hip * kHalfRadians);
-}
-
 // the stick deflection that turns as far through the game's curve, full the turn of a full stick
 float Deflection(float degrees, float full, float curve) {
     if (!(full > 0)) return 0.0f;
@@ -60,6 +48,10 @@ float Deflection(float degrees, float full, float curve) {
     if (curve > 0) x = std::pow(x, 1.0f / curve);
     return std::copysign(x, degrees);
 }
+
+// esi the player's controller, xmm2 the stick's zoom scale: under 1 while zoomed in, and still easing back to 1 after
+// the aim is let go, so the aim wanted decides when the aim sensitivities stop
+bool Zoomed(const X86Context& ctx) { return G<uint8_t>(ctx.esi + kControllerAimWanted) && ctx.xmm[2].f[0] < 1.0f; }
 
 // The gun sways with the right stick: while it rests, the stick that turns the view as fast as the mouse did
 void UpdateSway(X86Context& ctx, float yaw, float pitch) {
@@ -77,21 +69,19 @@ void MouseLook(X86Context& ctx, uint8_t*) {
     float pitch = 0.0f;
     float dx;
     float dy;
-    if (input::TakeMouse(dx, dy)) {
+    if (input::TakeMouse(dx, dy, Zoomed(ctx))) {
         yaw -= dx * kDegrees;
         pitch += dy * kDegrees;
     }
-    float gyro_yaw;
-    float gyro_pitch;
-    if (input::TakeGyro(gyro_yaw, gyro_pitch)) {
+    gyro::Turn turn = gyro::Take(game::Opt().gyro);
+    if (!app::MenuOpen()) {
         bool invert = G<uint8_t>(ctx.esi + kControllerInvertY);
-        yaw += gyro_yaw;
-        pitch += invert ? -gyro_pitch : gyro_pitch;
+        yaw += turn.yaw;
+        pitch += invert ? -turn.pitch : turn.pitch;
+        if (turn.recenter) G<float>(ctx.esi + kControllerPitch) = 0.0f;  // level
     }
     if (yaw == 0.0f && pitch == 0.0f) return;
-    float zoom = ViewZoom();
-    yaw = std::remainder(yaw * zoom, 360.0f);
-    pitch *= zoom;
+    yaw = std::remainder(yaw, 360.0f);
     G<float>(ctx.esi + kControllerYaw) += yaw;
     G<float>(ctx.esi + kControllerPitch) += pitch;
     UpdateSway(ctx, yaw, pitch);
@@ -103,9 +93,10 @@ bool AimAssist(X86Context&, uint8_t*) { return game::Opt().aim_assist && !input:
 // the look update: xmm3 the stick's yaw speed, xmm0 its pitch speed, before the zoom scale and frame time
 void StickLook(X86Context& ctx, uint8_t*) {
     if (input::KeyboardActive()) return;
-    float sensitivity = game::Opt().controller_sensitivity;
-    ctx.xmm[3].f[0] *= sensitivity;
-    ctx.xmm[0].f[0] *= sensitivity;
+    const game::Options& o = game::Opt();
+    bool zoomed = Zoomed(ctx);
+    ctx.xmm[3].f[0] *= zoomed ? o.controller_aim_horizontal_sensitivity : o.controller_sensitivity;
+    ctx.xmm[0].f[0] *= zoomed ? o.controller_aim_vertical_sensitivity : o.controller_vertical_sensitivity;
 }
 
 // the game drops the aim of a weapon whose zoom is 1 each frame (0x1BB143)

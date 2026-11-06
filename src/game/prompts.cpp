@@ -18,6 +18,7 @@ using namespace kernel;
 
 namespace game {
 uint32_t OptionsText(uint32_t id);  // options_menu.cpp
+uint32_t SaveName(uint32_t id);  // profile_messages.cpp
 bool Translated();  // language.cpp
 }
 
@@ -46,13 +47,30 @@ void Replace(std::string& text, std::string_view from, std::string_view to) {
         text.replace(at, from.size(), to);
 }
 
+// the console in each language's wording, a phrase before its words: each is only in its own language
+constexpr std::string_view kConsoleWords[][2] = {
+    {"XBOX CONSOLE", "PC"},
+    {"XBOX HARD DISK", "HARD DISK"},
+    {"la console Xbox", "le PC"},
+    {"disque dur Xbox", "disque dur"},
+    {"La Xbox", "Le PC"},
+    {"DIE XBOX-KONSOLE", "DEN PC"},
+    {"DIE XBOX-FESTPLATTE", "DIE FESTPLATTE"},
+    {"DIE XBOX HAT", "DER PC HAT"},
+    {"disco rigido di Xbox", "disco rigido"},
+    {"spegnere Xbox", "spegnere il PC"},
+    {"Xbox non", "Il PC non"},
+    {"LA CONSOLA XBOX", "EL PC"},
+    {"DISCO DE MEMORIA DE XBOX", "DISCO DE MEMORIA"},
+    {"XBOX NO TIENE", "EL PC NO TIENE"},
+    {"XBOX", "PC"},
+    {"Xbox", "PC"},
+};
+
 // a string as this PC words it, on the keyboard with its keys; empty when it stays
 std::string Wording(uint32_t id, const std::string& pad, bool keyboard) {
     std::string text = pad;
-    Replace(text, "XBOX CONSOLE", "PC");
-    Replace(text, "XBOX HARD DISK", "HARD DISK");
-    Replace(text, "XBOX", "PC");
-    Replace(text, "Xbox", "PC");
+    for (const auto& [from, to] : kConsoleWords) Replace(text, from, to);
     if (!keyboard) return text == pad ? std::string() : text;
     if (id == kConfirm) text = "(ENTER) " + text;
     else if (id == kBack || id == kBackspace) text = "(ESC) " + text;
@@ -103,6 +121,10 @@ X86_FUNC(sub_001F3A80) {
     __imp__sub_001F3A80(ctx, base);
     if (uint32_t text = game::OptionsText(id)) {
         ctx.eax = text;
+        return;
+    }
+    if (uint32_t name = game::SaveName(id)) {
+        ctx.eax = name;
         return;
     }
     if (!ctx.eax) return;

@@ -18,13 +18,14 @@ else()
     set(SDK ${xbe_sdk_SOURCE_DIR})
 endif()
 include(${SDK}/cmake/XbeRecomp.cmake)
-# src/sound, src/d3d, src/audio and src/common/game_files.cpp replace the SDK ones
-list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/(xdk/dsound|xdk/d3d8|gpu/d3d12|gpu/render_thread|audio/xaudio2|app/game_files)\\.cpp$")
+# src/sound, src/d3d, src/audio, src/app/game_code.cpp and src/common/game_files.cpp replace the SDK ones
+list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/(xdk/dsound|xdk/d3d8|gpu/d3d12|gpu/render_thread|audio/xaudio2|app/game_code|app/game_files)\\.cpp$")
 
 file(GLOB XBE_HOST_SOURCES CONFIGURE_DEPENDS src/*/*.cpp)
 list(FILTER XBE_HOST_SOURCES EXCLUDE REGEX "/src/game/")
-# gyro aiming reads the controllers' sensors through SDL
-set_source_files_properties(src/common/gyro.cpp PROPERTIES INCLUDE_DIRECTORIES "${sdl3_SOURCE_DIR}/include")
+# gyro aiming and the compiler window read the controllers through SDL
+set_source_files_properties(src/common/gyro.cpp src/app/game_code.cpp
+                            PROPERTIES INCLUDE_DIRECTORIES "${sdl3_SOURCE_DIR}/include")
 
 # partitions as config/game.toml sets them
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS config/game.toml)

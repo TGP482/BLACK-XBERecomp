@@ -92,6 +92,7 @@ constexpr Target kActions[] = {
     {{"back", "OBJECTIVES", "Tab"}, 13},
     {{"pause", "PAUSE MENU", "Escape"}, 12},
     {{"hide_hud", "TOGGLE HUD", ""}, kHostKey},
+    {{"toggle_textures", "TOGGLE TEXTURE REPLACEMENT", ""}, kHostKey},
     {{"settings_panel", "SETTINGS PANEL", "F10"}, kHostKey},
     {{"look_up", "LOOK UP", "Up"}, 20},
     {{"look_down", "LOOK DOWN", "Down"}, 21},
@@ -106,6 +107,7 @@ constexpr size_t HostAction(std::string_view id) {
 }
 constexpr size_t kHudAction = HostAction("hide_hud");
 constexpr size_t kPanelAction = HostAction("settings_panel");
+constexpr size_t kTexturesAction = HostAction("toggle_textures");
 struct Name {
     int vk;
     const char* name;
@@ -364,15 +366,15 @@ void ReleaseCursor() {
     g_settle = true;
 }
 
-bool TakeMouse(float& dx, float& dy) {
+bool TakeMouse(float& dx, float& dy, bool aim) {
     uint64_t now = NowMs();
     bool stale = now - g_take_ms.exchange(now) >= kPlayMs;
     int x = g_dx.exchange(0);
     int y = g_dy.exchange(0);
     if ((!x && !y) || stale || !Active()) return false;
     const game::Options& o = game::Opt();
-    dx = float(x) * o.mouse_sensitivity;
-    dy = float(o.invert_mouse ? -y : y) * o.mouse_sensitivity;
+    dx = float(o.invert_mouse_x ? -x : x) * (aim ? o.aim_horizontal_sensitivity : o.mouse_sensitivity);
+    dy = float(o.invert_mouse ? -y : y) * (aim ? o.aim_vertical_sensitivity : o.mouse_vertical_sensitivity);
     return true;
 }
 
@@ -555,5 +557,6 @@ int PressedKey() {
 
 bool PanelKey(int vk) { return HostKeyBound(kPanelAction, vk); }
 bool HudKey(int vk) { return HostKeyBound(kHudAction, vk); }
+bool TexturesKey(int vk) { return HostKeyBound(kTexturesAction, vk); }
 
 }  // namespace input

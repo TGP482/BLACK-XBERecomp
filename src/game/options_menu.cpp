@@ -52,6 +52,13 @@ constexpr int kBarTick = 7;
 constexpr int kBarScan = 11;
 constexpr float kBarLeft = -5.0f;  // the box's left end and the left tick
 constexpr float kTickGap = 10.0f;  // past the end of the widest value
+constexpr float kNameGap = 12.0f;  // between the widest name and the values
+
+// TextAnim's flashes on the stock rows as the page opens, by depth: an 8 wide square scaled 30 about x 112.3
+constexpr int kFlashFirst = 9;
+constexpr int kFlashLast = 21;
+constexpr float kFlashLeft = -7.7f;
+constexpr float kFlashWidth = 240.0f;
 
 // the rows' font, as the name entry's caret measures it
 constexpr uint32_t kFindFont = 0x13CD0;   // stdcall (game object, name): a font
@@ -81,6 +88,7 @@ struct Host {
     float name_x;
     float value_x;
     float scale;
+    float lit;                 // the name's scale once focused, its HighlightFrame
     const char* hint;          // the string of a prompt our buttons take the place of
     const char* stock[14];     // what the rows take the place of
     Bar bar;
@@ -88,20 +96,21 @@ struct Host {
     const char* prompts[kPrompts];
     float prompt_x[kPrompts];
     float prompt_y;
+    bool flashes;  // TextAnim flashes a box on each stock row
 };
 constexpr Host kHosts[] = {
     {"OptionsMenuXbox", "TextAnim", "_level4.Main.TextAnim.ControllerSetup_Text", "Playerprofile_Text", 25.0f,
-     "controllerButton", "Playerprofile", 25.0f, -37.0f, 185.0f, 0.9f, nullptr,
+     "controllerButton", "Playerprofile", 25.0f, 0.0f, 185.0f, 0.9f, 1.1f, nullptr,
      {"ControllerSetup_Text", "SoundSetup_Text", "PictureSetup_Text", "Playerprofile_Text"},
-     {1.0f, 245.0f, 445.0f, -5.0f}, {}, {}, 0.0f},
+     {1.0f, 245.0f, 445.0f, -5.0f}, {}, {}, 0.0f, true},
     {"PauseMenuOptionXbox", nullptr, "_level4.Main.ToggleCrouch", "ToggleCrouch", 222.0f,
-     "toggleCrouchButton", "musicVolumeButton", 27.0f, 0.0f, 245.0f, 1.0f, "$FE_SELECT",
+     "toggleCrouchButton", "musicVolumeButton", 27.0f, 0.0f, 245.0f, 1.0f, 1.0f, "$FE_SELECT",
      {"ToggleCrouch", "ToggleCrouchOn_Text", "ToggleCrouchOff_Text", "InvertLook", "InvertLookOn_Text",
       "InvertLookOff_Text", "Vibration", "VibrationOn_Text", "VibrationOff_Text", "SFXVolume", "Sound_Volume",
       "MusicVolume", "Music_Volume"},
      {1.4f, 343.55f, 443.55f, 168.35f},
      // stage y 458 under the third button's bar (to 441), the screen ends at 480
-     {"_level4.Main.ConfirmPrompt", "_level4.Main.BackPrompt"}, {-16.0f, 164.0f}, 306.0f},
+     {"_level4.Main.ConfirmPrompt", "_level4.Main.BackPrompt"}, {-16.0f, 164.0f}, 306.0f, false},
 };
 
 // a text the page shows from here: its string id, the text, the data of the field showing it
@@ -126,6 +135,7 @@ struct Page {
     uint32_t value[kSlots] = {};
     size_t slots = 0;
     size_t top = 0;
+    float value_x = 0;  // the values' column, past the widest name
     std::vector<const Row*> rows;  // null restores the defaults
     int capture = 0;  // a key binding: 1 the keys come up, 2 the next key binds or Escape leaves, 3 they come up again
     size_t bind = 0;  // its row
@@ -197,7 +207,7 @@ void Follow(const Page& p) {
     for (int i = 0; i < kPrompts; i++) follow(p.prompt[i], h.prompt_x[i], h.prompt_y);
     for (int i = 0; i < kSlots; i++) {
         follow(p.name[i], h.name_x, h.pitch * float(i));
-        follow(p.value[i], h.value_x, h.pitch * float(i));
+        follow(p.value[i], p.value_x, h.pitch * float(i));
     }
 }
 
@@ -251,8 +261,11 @@ bool Entries(X86Context& ctx, uint32_t root, uint32_t holder) {
     return true;
 }
 
-// the settings' categories, each a row
-bool Listing(const Page& p) { return p.mode == kSettingsMode && !g_group; }
+// every page shows a list of its categories first
+bool Grouped(int mode) { return mode != 0; }
+
+// a grouped page's categories, each a row
+bool Listing(const Page& p) { return Grouped(p.mode) && !g_group; }
 
 // the rows of the page's mode
 void Fill(Page& p) {
@@ -266,10 +279,13 @@ void Fill(Page& p) {
         if (g_group && heading) inside = &list[i] == g_group;
         if (heading == listing && inside) p.rows.push_back(&list[i]);
     }
-    if (p.mode > kSettingsMode) p.rows.push_back(nullptr);
+    bool defaults = !Grouped(p.mode) || listing;
+    if (p.mode > kSettingsMode && defaults) p.rows.push_back(nullptr);
     p.slots = std::min(p.slots, p.rows.size());
     p.top = 0;
 }
+
+float ValueColumn(X86Context& ctx, const Page& p);
 
 // the panel's rows in place of the stock buttons
 bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
@@ -295,6 +311,7 @@ bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
         if (!Show(ctx, kName + int(i), p.name[i]) || !Show(ctx, kValue + int(i), p.value[i])) return false;
     }
     p.first = p.name[0];
+    p.value_x = ValueColumn(ctx, p);
     Follow(p);
     CallGuest(ctx, flash::kRunActions, {R32(flash::kPlayer)});
     for (size_t i = 0; i < p.slots; i++) {
@@ -315,6 +332,8 @@ bool Rows(X86Context& ctx, uint32_t root, uint32_t holder, uint32_t menu) {
     Focus(ctx, p.name[0]);
     return true;
 }
+
+std::string NameText(const Row* row) { return app::Ui(row ? row->label : "RESTORE DEFAULTS"); }
 
 // what row i of the page shows as its value
 std::string ValueText(const Page& p, size_t i) {
@@ -368,6 +387,16 @@ float Measure(uint32_t font, const std::string& text) {
     return G<float>(font + kFontScale) * end;
 }
 
+// the stock column, further right when a focused name would run into it
+float ValueColumn(X86Context& ctx, const Page& p) {
+    const Host& h = *p.host;
+    uint32_t font = CallGuest(ctx, kFindFont, {R32(kGame), kFontName});
+    float widest = 0.0f;
+    for (const Row* row : p.rows) widest = std::max(widest, Measure(font, NameText(row)));
+    float name_end = h.name_x + (kTextLeft + widest * kTextHeight) * h.scale * h.lit;
+    return std::max(h.value_x, name_end + kNameGap);
+}
+
 // how far right of the focused name the widest value of the page ends, the label clip scaled as it lights
 float Reach(X86Context& ctx, const Page& p, uint32_t focus) {
     const Host& h = *p.host;
@@ -379,17 +408,16 @@ float Reach(X86Context& ctx, const Page& p, uint32_t focus) {
     shown.capture = 0;
     float widest = 0.0f;
     for (size_t i = 0; i < p.rows.size(); i++) widest = std::max(widest, Measure(font, ValueText(shown, i)));
-    return h.value_x - h.name_x + (kTextLeft + widest * kTextHeight) * scale + kTickGap;
+    return p.value_x - h.name_x + (kTextLeft + widest * kTextHeight) * scale + kTickGap;
 }
 
-// the bar on the focused row reaches past the values, its ends and line as stock
-void StretchBar(X86Context& ctx, const Page& p, uint32_t root, uint32_t focus) {
+// the bar on the focused row reaches right, past the values, its ends and line as stock
+void StretchBar(X86Context& ctx, const Page& p, uint32_t root, float right) {
     const Bar& stock = p.host->bar;
     uint32_t bar = Member(ctx, Member(ctx, root, "Main"), "ButtonSelector");
     if (flash::Type(bar) != flash::kSprite) return;
     uint32_t data = R32(bar + flash::kClipData);
     if (!data || data == flash::kNoData || R32(data + flash::kDataFrame) != kBarRest) return;
-    float right = std::max(stock.tick, Reach(ctx, p, focus));
     float stretch = (right - kBarLeft) / (stock.tick - kBarLeft);
     int left = 256;
     for (uint32_t part = flash::FirstChild(bar); part && left; part = R32(part + flash::kClipNext), left--) {
@@ -401,6 +429,20 @@ void StretchBar(X86Context& ctx, const Page& p, uint32_t root, uint32_t focus) {
             G<float>(part + flash::kClipScaleX) = stretch;
             G<float>(part + flash::kClipX) = kBarLeft + (stock.scan - kBarLeft) * stretch;
         }
+    }
+}
+
+// the flashes reach as far past the stock bar as the bar does, their left ends kept
+void StretchFlashes(const Page& p, uint32_t holder, float right) {
+    float scale = 1.0f + (right - p.host->bar.tick) / kFlashWidth;
+    int left = 256;
+    for (uint32_t part = flash::FirstChild(holder); part && left; part = R32(part + flash::kClipNext), left--) {
+        int depth = flash::Depth(part);
+        if (depth < kFlashFirst || depth > kFlashLast) continue;
+        float& x = G<float>(part + flash::kClipX);
+        float& now = G<float>(part + flash::kClipScaleX);
+        x += (now - scale) * kFlashLeft;
+        now = scale;
     }
 }
 
@@ -428,10 +470,10 @@ void Build(X86Context& ctx, const Host& host, uint32_t root, uint32_t holder, ui
     g_next = 0;
     // back from a category is its list
     const Row* back = nullptr;
-    if (!p.mode && g_last == kSettingsMode && g_group) {
+    if (!p.mode && Grouped(g_last) && g_group) {
         back = g_group;
         g_group = nullptr;
-        p.mode = kSettingsMode;
+        p.mode = g_last;
     }
     p.failed = !(p.mode ? Rows(ctx, root, holder, menu) : Entries(ctx, root, holder));
     const char* shown = p.mode ? kCaptions[p.mode - 1] : "buttons";
@@ -492,7 +534,7 @@ void ApplyRowInput(size_t slot, uint32_t id, bool locked) {
         if (!locked) app::rows::Value(*row, id == kInputLeft ? -1 : 1);
     } else if (id == kInputConfirm && row && row->kind == app::rows::Kind::Heading) {
         g_group = row;
-        g_next = kSettingsMode;
+        g_next = p.mode;
     } else if (id == kInputConfirm && row) {
         p.capture = 1;
         p.bind = p.top + slot;
@@ -523,7 +565,7 @@ void UpdateTexts(const Page& p) {
     Write(g_fields[kTitle], app::Ui(g_group ? g_group->label : kCaptions[p.mode - 1]));
     for (size_t i = 0; i < p.slots; i++) {
         const Row* row = p.rows[p.top + i];
-        Write(g_fields[kName + i], app::Ui(row ? row->label : "RESTORE DEFAULTS"));
+        Write(g_fields[kName + i], NameText(row));
         Write(g_fields[kValue + i], ValueText(p, p.top + i));
         uint32_t from = flash::FirstChild(p.name[i]);
         uint32_t to = flash::FirstChild(p.value[i]);
@@ -582,7 +624,10 @@ void Tick(X86Context& ctx, uint32_t ui) {
         UpdateRow(ctx, ui, slot, id, clear);
     }
     UpdateTexts(p);
-    if (slot < p.slots) StretchBar(ctx, p, root, focus);
+    if (slot >= p.slots) return;
+    float right = std::max(p.host->bar.tick, Reach(ctx, p, focus));
+    StretchBar(ctx, p, root, right);
+    if (p.host->flashes) StretchFlashes(p, holder, right);
 }
 
 }  // namespace
