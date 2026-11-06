@@ -3106,7 +3106,7 @@ void D3D12Backend::Draw(const State& s, uint32_t prim, uint32_t start, uint32_t 
     PixelKey pk = MakePixelKey(s, stages.info);
     // The final glow is a quarter-size target added to the scene with RGB = t0 * pc0.
     TextureDesc glow;
-    stages.final_glow = prim == 5 && count == 3 && bound_rt_ && bound_rt_->gw == guest_w_ &&
+    stages.final_glow = game::Opt().reduced_glow && prim == 5 && count == 3 && bound_rt_ && bound_rt_->gw == guest_w_ &&
         bound_rt_->gh == guest_h_ && !s.rs[kRsZEnable] && pk.programmable && (pk.count & 0xFF) == 1 &&
         pk.tex_modes == 1 && !pk.alphakill && pk.rgb_in[0] == 0xC8C10000 && pk.rgb_out[0] == 0xC0 &&
         pk.final_abcd == 0x00000C00 && pk.final_efg == 0x00001180 &&
