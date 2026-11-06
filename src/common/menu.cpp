@@ -239,7 +239,7 @@ enum RowId { kDisplayMode, kResolution, kRenderResolution, kMaxFps, kVsync, kFps
              kGyroAiming, kGyroSensitivity, kAimAssist, kGyroAxis, kGyroButton, kGyroButtonMode, kGyroRecenter,
              kGyroCalibrate, kColourBlind, kSensitivityVertical, kAimHorizontal, kAimVertical, kInvertMouseX,
              kControllerVertical, kPadAimHorizontal, kPadAimVertical, kInvertPadX, kTextureReplacement,
-             kTextureDumping, kDumpFormat, kDeadZone };
+             kTextureDumping, kDumpFormat, kDeadZone, kGlow };
 
 using rows::Kind;
 using rows::Row;
@@ -264,6 +264,7 @@ constexpr Row kSettingsRows[] = {
     {Kind::Value, kSmaa, "SMAA"},
     {Kind::Value, kAniso, "ANISOTROPIC FILTERING"},
     {Kind::Value, kDrawDistance, "DRAW DISTANCE"},
+    {Kind::Value, kGlow, "GLOW"},
     {Kind::Value, kReloadBlur, "RELOAD BLUR"},
     {Kind::Heading, -1, "GENERAL"},
     {Kind::Value, kSkipIntros, "SKIP INTROS"},
@@ -488,6 +489,10 @@ bool StepDisplayRow(int id, int step, Settings& s, char (&text)[64]) {
 bool StepGraphicsRow(int id, int step, Settings& s, char (&text)[64]) {
     game::Options& o = game::Opt();
     switch (id) {
+        case kGlow:
+            Flip(o.reduced_glow, step);
+            std::snprintf(text, sizeof(text), "%s", o.reduced_glow ? "REDUCED" : "DEFAULT");
+            return true;
         case kMsaa:
             std::snprintf(text, sizeof(text), "%s", kMsaaNames[StepTable(kMsaaValues, o.msaa, step)]);
             return true;

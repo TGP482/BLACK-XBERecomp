@@ -254,6 +254,7 @@ const app::GameInfo app::kGame = {
     .options = {{"skip_intros", &game::Opt().skip_intros, nullptr},
                 {"fps_counter", &game::Opt().fps_counter, nullptr},
                 {"reload_blur", &game::Opt().reload_blur, nullptr},
+                {"reduced_glow", &game::Opt().reduced_glow, nullptr},
                 {"fmv_scale", nullptr, &game::Opt().fmv_scale},
                 {"colour_blind", nullptr, &game::Opt().colour_blind},
                 {"hdr_output", &game::Opt().hdr_output, nullptr},
