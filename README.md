@@ -42,7 +42,7 @@ This port was created using the [Xbox XBE Recomp](https://github.com/TGP482/Xbox
 - **Dump Format** - Choose between PNG or DDS, which keeps the original compression and mipmaps.
 
 ### Input
-- **Mouse and Keyboard** - Full keyboard and mouse support with raw input, adjustable horizontal and vertical sensitivity, inverted look and rebindable controls.
+- **Mouse and Keyboard** - Full keyboard and mouse support with raw input, adjustable horizontal and vertical sensitivity, inverted look and rebindable controls. Menu legends, gameplay hints and pickup prompts show the current primary key binding, then switch back to the original Xbox artwork after controller input.
 - **Controller** - Controller with SDL3 support and additional features.
 - **Gyro Aiming** - Adds gyro aiming for controllers with motion sensors, such as the DualSense, DualShock 4 and Switch Pro Controller, with adjustable sensitivity. Works together with the right stick.
 
