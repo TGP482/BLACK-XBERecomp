@@ -183,7 +183,11 @@ void UpdateConfirm(X86Context& ctx, uint32_t ui, uint32_t root) {
     if (g_quitting) return;
     g_quitting = true;
     LOGI("quit: closing the window");
+#ifdef _WIN32
     PostMessageW(static_cast<HWND>(app::Window()), WM_CLOSE, 0, 0);
+#else
+    app::Quit();  // the SDL window's close request, from whichever thread this menu runs on
+#endif
 }
 
 void Tick(X86Context& ctx, uint32_t ui) {

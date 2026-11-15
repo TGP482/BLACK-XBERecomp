@@ -8,13 +8,16 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 #include <algorithm>
 #include <cwctype>
 #include <fstream>
 
 #include "app/app.h"
+#include "common/message.h"
 #include "core/log.h"
 #include "image_symbols.h"
 #include "kernel/crypto.h"
@@ -140,7 +143,8 @@ struct EuropePatch {
     }
 };
 
-// europe.patch from the executable's resources
+// europe.patch from the executable: a resource on Windows, a generated array elsewhere (CMake writes it)
+#ifdef _WIN32
 bool LoadEuropePatch(const uint8_t*& data, size_t& size) {
     HRSRC res = FindResourceW(nullptr, L"EUROPE", RT_RCDATA);
     if (!res) return false;
@@ -148,6 +152,17 @@ bool LoadEuropePatch(const uint8_t*& data, size_t& size) {
     size = SizeofResource(nullptr, res);
     return data && size;
 }
+#else
+}  // namespace
+extern const uint8_t kEuropePatch[];
+extern const size_t kEuropePatchSize;
+namespace {
+bool LoadEuropePatch(const uint8_t*& data, size_t& size) {
+    data = kEuropePatch;
+    size = kEuropePatchSize;
+    return size != 0;
+}
+#endif
 
 // the US xbe in place of the Europe one; false leaves it as it was
 bool ConvertEurope(std::vector<uint8_t>& xbe) {
@@ -169,9 +184,10 @@ bool FindGame(GameFiles& game) {
     std::error_code ec;
     if (!assets.empty())
         for (auto& e : fs::directory_iterator(assets, ec)) {
-            std::wstring ext = e.path().extension().wstring();
-            std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) { return wchar_t(std::towlower(c)); });
-            if (ext == L".iso" && e.is_regular_file(ec)) isos.push_back(e.path());
+            // the extension is ASCII: converting the whole path to wide would go through codecvt and can throw
+            std::string ext = e.path().extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+            if (ext == ".iso" && e.is_regular_file(ec)) isos.push_back(e.path());
         }
     std::sort(isos.begin(), isos.end());
 
@@ -219,14 +235,14 @@ bool FindGame(GameFiles& game) {
     }
 
     if (other_name.empty()) {
-        MessageBoxW(nullptr, kGame.missing, kGame.short_title, MB_ICONERROR);
+        ShowError(kGame.short_title, kGame.missing);
         return false;
     }
-    std::wstring text = other_name.filename().wstring() +
+    std::string release = other_name.filename().string();
+    std::wstring text = std::wstring(release.begin(), release.end()) +
                         L" is a different release of the game than this build was made from, and will most likely "
                         L"crash.\n\nStart it anyway?";
-    int answer = MessageBoxW(nullptr, text.c_str(), kGame.short_title, MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
-    if (answer != IDYES) return false;
+    if (!ShowConfirm(kGame.short_title, text)) return false;
     game = std::move(other);
     kernel::MountDisc(std::move(other_disc));
     return true;

@@ -116,25 +116,6 @@ int StepRange(int value, int lo, int hi, int inc, int step) {
     return lo + inc * StepIndex((std::clamp(value, lo, hi) - lo) / inc, step, count);
 }
 
-// the monitor's modes smallest first, so Left steps down; the primary's for empty
-std::vector<Mode> Modes(const std::string& monitor) {
-    std::vector<Mode> modes;
-    std::wstring device(monitor.begin(), monitor.end());
-    const wchar_t* name = device.empty() ? nullptr : device.c_str();
-    DEVMODEW dm{};
-    dm.dmSize = sizeof(dm);
-    for (DWORD i = 0; EnumDisplaySettingsW(name, i, &dm); i++) {
-        if (dm.dmBitsPerPel < 32 || dm.dmPelsWidth < 640) continue;
-        Mode m{dm.dmPelsWidth, dm.dmPelsHeight};
-        auto same = [&](const Mode& o) { return o.width == m.width && o.height == m.height; };
-        if (std::none_of(modes.begin(), modes.end(), same)) modes.push_back(m);
-    }
-    std::sort(modes.begin(), modes.end(), [](const Mode& a, const Mode& b) {
-        return a.width != b.width ? a.width < b.width : a.height < b.height;
-    });
-    return modes;
-}
-
 void Section(const char* title) {
     float em = ImGui::GetFontSize();
     ImGui::Dummy(ImVec2(0, em * 0.5f));
@@ -378,7 +359,7 @@ Mode StepResolution(Settings& s, int step) {
         desktop = monitors[size_t(index)].desktop;
     }
     auto [it, fresh] = cache.try_emplace(device);
-    if (fresh) it->second = Modes(device);
+    if (fresh) it->second = game::Modes(device);
     const std::vector<Mode>& modes = it->second;
     Mode m = s.width && s.height ? Mode{s.width, s.height} : desktop;
     int i = 0;
@@ -934,6 +915,10 @@ const rows::Row* rows::Page(int page, size_t* count) {
     static const std::vector<Row> rows = [] {
         std::vector<Row> out(std::begin(kSettingsRows), std::end(kSettingsRows));
         if (!game::HasLanguages()) std::erase_if(out, [](const Row& row) { return row.id == kLanguage; });
+#ifdef __APPLE__
+        // cocoa fullscreen is the desktop size: SDL_SetWindowFullscreenMode does nothing, so the row would too
+        std::erase_if(out, [](const Row& row) { return row.id == kResolution; });
+#endif
         return out;
     }();
     *count = rows.size();

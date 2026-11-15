@@ -324,12 +324,14 @@ float EarAt(const Voice& v, float delay) {
 // way; false once it has run dry.
 bool StreamFrame(Voice& v, float s[2]) {
     uint32_t f = uint32_t(v.pos);
-    while (!v.packets.empty() && f >= FramesOf(v, v.packets.front().size)) {
+    while (!v.packets.empty()) {
+        uint32_t done = FramesOf(v, v.packets.front().size);
+        if (f < done) break;
         Packet pk = v.packets.front();
         v.packets.pop_front();
         pk.used = pk.size;
         Complete(v, pk, 0);
-        v.pos -= FramesOf(v, pk.size);
+        v.pos -= done;
         f = uint32_t(v.pos);
     }
     if (v.packets.empty()) {
@@ -338,12 +340,14 @@ bool StreamFrame(Voice& v, float s[2]) {
         return false;
     }
     Packet& pk = v.packets.front();
+    // one division per frame, not one per channel: the packet's length stays put across the loop
+    uint32_t frames = FramesOf(v, pk.size);
     float t = float(v.pos - f);
     int channels = std::min<int>(v.channels, 2);
     for (int c = 0; c < channels; c++) {
         float now = Sample(v, pk.data, f, c);
         float next = now;
-        if (f + 1 < FramesOf(v, pk.size)) next = Sample(v, pk.data, f + 1, c);
+        if (f + 1 < frames) next = Sample(v, pk.data, f + 1, c);
         else if (v.packets.size() > 1) next = Sample(v, v.packets[1].data, 0, c);
         s[c] = now + (next - now) * t;
     }

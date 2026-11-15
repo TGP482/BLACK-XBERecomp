@@ -23,6 +23,7 @@
 #include <SDL3/SDL.h>
 
 #include "app/app.h"
+#include "common/message.h"
 #include "core/input.h"
 #include "core/log.h"
 #include "hook_exports.h"
@@ -755,13 +756,13 @@ void ShowFailure() {
     std::wstring text = L"Preparing the game failed. " + g_failure;
     if (std::wstring tail = CompileLogTail(); !tail.empty()) text += L"\n\nThe last lines of the log:\n\n" + tail;
     text += L"\n\nThe full details are in logs\\compile.log.";
-    MessageBoxW(nullptr, text.c_str(), kGame.title, MB_ICONERROR);
+    ShowError(kGame.title, text);
 }
 
 // the build on its own thread, the window on this one; false when it failed, the player stopped it, or chose Exit
 bool BuildWithWindow(std::vector<Target>& targets) {
     if (std::wstring blocker = Blocker(targets); !blocker.empty()) {
-        MessageBoxW(nullptr, blocker.c_str(), kGame.title, MB_ICONERROR);
+        ShowError(kGame.title, blocker);
         return false;
     }
     SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);  // no sleep while it works
@@ -800,8 +801,7 @@ bool PrepareGameCode(const GameFiles& game) {
     if (!built) return false;
     for (const Image& image : images)
         if (image.xbe == IMAGE_XBE && dispatch::Load(CodeDll(image))) return true;
-    MessageBoxW(nullptr, L"The game's code could not be loaded, see the log in the logs folder.", kGame.title,
-                MB_ICONERROR);
+    ShowError(kGame.title, L"The game's code could not be loaded, see the log in the logs folder.");
     return false;
 }
 

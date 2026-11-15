@@ -677,7 +677,8 @@ HLE_STDCALL(D3DDevice_Clear, 6) {
 
 HLE_STDCALL(D3DDevice_CopyRects, 5) {
     std::lock_guard<std::recursive_mutex> lock(g_lock);
-    if (g_backend) g_backend->Copy(SurfaceOf(a[0]), SurfaceOf(a[3]), a[2], a[1], a[4]);
+    // the backend works the scale out from the surfaces it is given
+    if (g_backend) g_backend->Copy(SurfaceOf(a[0]), SurfaceOf(a[3]), a[2], a[1], a[4], 1, 1);
     return 0;
 }
 
