@@ -97,6 +97,8 @@ Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) and 
 ### Requirements
 - Apple Silicon and macOS 14 or later. MoltenVK and D3DMetal both need 14; this port was developed on macOS 26.6 on an M1.
 - Install `cmake`, `ninja`, `sdl3`, `vulkan-loader`, `molten-vk`, `vulkan-tools` and `glslang` with Homebrew. Xcode command line tools provide clang.
+- `git clone https://github.com/TGP482/XboxXBE-Recomp sdk` puts the MIT SDK in `sdk/`.
+- `git apply tools/macos/sdk-apple.patch` from the repository root adds the Apple backend the build uses.
 
 ### Build
 - Place your game files in the `assets` folder first. Without `assets/default.xbe` at configure time, only the tools and host objects build.

@@ -13,6 +13,9 @@
 # user's own game files
 /assets/
 
+# the sdk: cloned beside the patch, see README
+/sdk/
+
 # runtime files
 black.toml
 /logs/

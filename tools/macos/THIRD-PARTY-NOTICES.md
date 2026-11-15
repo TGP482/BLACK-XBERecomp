@@ -13,13 +13,13 @@ existence on macOS 26 / Homebrew at `/opt/homebrew`; `brew --prefix <formula>` p
 | Vulkan Memory Allocator | MIT | `vendor/crownpark-full/third_party/vma-src/LICENSE.txt` | header-only, compiled in |
 | Zydis / Zycore | MIT | `vendor/crownpark-full/third_party/zydis-src/LICENSE`, `.../zycore/LICENSE` | build tools only (`xbe_recomp`, `xbe_symbols`), not shipped |
 | glslang | BSD-3-Clause | `$(brew --prefix glslang)/LICENSE.txt` | authoring only (`tools/macos/hlsl2spv.sh` calls `glslangValidator`) |
-| XboxXBE-Recomp SDK | MIT, TGP482 | `sdk/LICENSE` | vendored in `sdk/`, compiled in; the files in it from CrownPark's port (`runtime/app/main_sdl`, `window_sdl`, `runtime/gpu/vk_*`) carry no grant, see below |
+| XboxXBE-Recomp SDK | MIT, TGP482 | `sdk/LICENSE` | not vendored: `tools/macos/sdk-apple.patch` applies TGP482's MIT tree, cloned into `sdk/`, and is compiled in; the files it adds from CrownPark's port (`runtime/app/main_sdl`, `window_sdl`, `runtime/gpu/vk_*`) carry no grant, see below |
 
 glslang appears nowhere in `build.ninja`; the shipped executable links only SDL3, vulkan-loader and libSystem.
 
 ## CrownPark-derived files
 
-Sources taken from `vendor/crownpark-full` carry no licence grant of their own. `THIRD_PARTY.md` says:
+Sources taken from `vendor/crownpark-full` carry no licence grant of their own, and the ones `sdk-apple.patch` adds to the SDK are no exception. `THIRD_PARTY.md` says:
 
 > No new blanket license is assigned to the combined port snapshots.
 
