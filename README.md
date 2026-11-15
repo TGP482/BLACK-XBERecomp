@@ -117,5 +117,4 @@ VK_ICD_FILENAMES=$(brew --prefix molten-vk)/etc/vulkan/icd.d/MoltenVK_icd.json .
 
 ### Limits
 - There is no first run compile yet: the binary already contains the recompiled game code and must not be distributed.
-- The renderer is derived from CrownPark and carries no licence grant.
 - HDR and MSAA are unverified. The window is borderless or windowed, since Cocoa has no exclusive fullscreen mode.
