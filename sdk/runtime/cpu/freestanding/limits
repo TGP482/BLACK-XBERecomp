@@ -1,0 +1,9 @@
+#pragma once
+
+namespace std {
+template <typename T>
+struct numeric_limits {
+    static constexpr T min() { return T(-1) < T(0) ? T(T(1) << (sizeof(T) * 8 - 1)) : T(0); }
+    static constexpr T max() { return T(~min()); }
+};
+}  // namespace std

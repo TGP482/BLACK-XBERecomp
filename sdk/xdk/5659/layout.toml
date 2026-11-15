@@ -1,0 +1,52 @@
+# XDK 5659 library data layouts the runtime reads or writes. Each value is proven by the default.xbe
+# (Grand Theft Auto III) code at the address given.
+[layout]
+# D3D8 CDevice at D3D_Device; miniport at +0x1C28 (D3DDevice_SetGammaRamp 0x25A8B0)
+CDevice_Push              = 0x0    # every SetRenderState_* writes it, compares with +4
+CDevice_PushThreshold     = 0x4    # D3DDevice_SetRenderState_CullMode 0x258E40
+CDevice_BaseVertex        = 0x1C   # D3DDevice_DrawIndexedVertices 0x25D9E0 passes it to the state flush
+CDevice_IndexBuffer       = 0x7A0  # the device teardown 0x2630E0 releases it
+CDevice_ZScale            = 0x948  # the viewport push 0x259C80 scales the Z range by it
+CDevice_SuperSampleX      = 0x95C  # the viewport push 0x259C80 scales viewport X by it
+CDevice_SuperSampleY      = 0x960  # the viewport push 0x259C80 scales viewport Y by it
+CDevice_Transforms        = 0xC60  # D3DDevice_SetTransform 0x25ACE0
+CDevice_Textures          = 0xF88  # D3DDevice_SetTexture 0x25B5B0, D3D_InitDefaultState 0x2622B0 clears [stage]
+CDevice_Palettes          = 0xF98  # D3DDevice_SetPalette 0x25B770
+CDevice_RenderTarget      = 0x1A04 # D3DDevice_GetRenderTarget2 0x25AC60
+CDevice_Depth             = 0x1A08 # D3DDevice_GetDepthStencilSurface2 0x25ACA0
+CDevice_BackBuffer        = 0x1A14 # D3DDevice_GetBackBuffer2 0x25A860, index 0
+CDevice_FrontBuffer       = 0x1A18 # D3DDevice_GetBackBuffer2 0x25A860, index -1
+CDevice_SwapCount         = 0x2478 # D3DDevice_Swap 0x2607D0, the swap fence 0x260790
+CDevice_Size              = 0x24A0 # Direct3D_CreateDevice 0x25F9F0 clears 0x928 dwords on failure
+CDevice_Flags             = 0x8    # Direct3D_CreateDevice 0x25F9F0 ors BehaviorFlags & 0x10 into it
+CDevice_Time              = 0x2C   # D3D_BlockOnResource 0x261650 waits on it
+CDevice_PixelShader       = 0x784  # D3DDevice_SetRenderState_TextureFactor 0x259110 tests it
+CDevice_VertexShader      = 0x794  # the device init 0x262FD1 stores the FVF shader object 0x26CF58
+CDevice_BackBufferScale   = 0x96C  # 0x2608C0 stores the X scale as a float, the Y scale at +4
+CDevice_Viewport          = 0xEE0  # the viewport push 0x259C80 reads X, Y
+CDevice_ScreenSpaceOffset = 0xEF8  # D3DDevice_SetScreenSpaceOffset 0x25BC50
+CDevice_AutoDepth         = 0x1A20 # the frame buffer init 0x2632D0 stores the depth buffer at 0x263406
+CDevice_VBlankCallback    = 0x1DB8 # miniport + 0x190
+CDevice_VBlankEvent       = 0x1DBC # the mode switch at Swap 0x260600 waits on it
+CDevice_DisplayFlags      = 0x1DDC # the mode switch at Swap 0x260600 tests it
+CDevice_VBlankCount       = 0x1DE8 # the mode switch at Swap 0x260600 increments it
+CDevice_Field             = 0x1DF8 # miniport + 0x1D0
+CDevice_GammaRamps        = 0x1E04 # D3DDevice_SetGammaRamp 0x25A8B0, miniport + 0x1DC + index * 0x300
+CDevice_GammaPending      = 0x2404 # D3DDevice_SetGammaRamp 0x25A8B0, miniport + 0x7DC + index * 4
+# D3D8 globals
+DirtyFlags_Texture        = 0x4800 # D3D_InitDefaultState 0x2622B0 ors it into D3D_DirtyFlags
+TextureState_Stage        = 32     # D3DDevice_SetTextureStageStateNotInline 0x2599F0: [stage * 32 + type] dwords
+Stream_Size               = 12     # D3DDevice_SetStreamSource 0x25C930 indexes the stream table by n * 12
+Stream_Stride             = 0x0    # D3DDevice_SetStreamSource 0x25C930 stores Stride
+Stream_Buffer             = 0x8    # D3DDevice_SetStreamSource 0x25C930 stores the vertex buffer
+PixelShader_Definition    = 0x8    # D3DDevice_CreatePixelShader 0x260980 stores the definition pointer
+# DSOUND, code matched byte for byte with 5849
+CDirectSoundStream_Vtable  = 0x0   # DSound_StreamVtable holds CDirectSoundStream_AddRef 0x1EB0C6 first
+CDirectSoundStream_Vtable2 = 0x4   # DSound_StreamVtable2 is 0x10 before it
+EffectsImage_Skip0         = 0x804 # XAudioDownloadEffectsImage 0x1EBA06 and its callees match 5849
+EffectsImage_Skip1         = 0x80C
+EffectsImage_Desc          = 0x818
+# XAPI XPP device type record
+XPP_Current               = 0x0    # XGetDevices 0x26E1D1 returns it
+XPP_Changed               = 0x4    # XGetDevices 0x26E1D1 clears it, XGetDeviceChanges 0x26E1F3 tests it
+XPP_Previous              = 0x8    # XGetDevices 0x26E1D1 copies Current into it

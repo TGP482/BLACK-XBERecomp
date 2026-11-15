@@ -1,0 +1,300 @@
+#pragma once
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <type_traits>
+
+#include "x86_context.h"
+
+typedef uint16_t __attribute__((aligned(1), may_alias)) x86_u16u;
+typedef uint32_t __attribute__((aligned(1), may_alias)) x86_u32u;
+typedef uint64_t __attribute__((aligned(1), may_alias)) x86_u64u;
+typedef float __attribute__((aligned(1), may_alias)) x86_f32u;
+typedef double __attribute__((aligned(1), may_alias)) x86_f64u;
+
+#define X86_MEM8(a) (*(uint8_t*)(base + (uint32_t)(a)))
+#define X86_MEM16(a) (*(x86_u16u*)(base + (uint32_t)(a)))
+#define X86_MEM32(a) (*(x86_u32u*)(base + (uint32_t)(a)))
+#define X86_MEM64(a) (*(x86_u64u*)(base + (uint32_t)(a)))
+#define X86_MEMF32(a) (*(x86_f32u*)(base + (uint32_t)(a)))
+#define X86_MEMF64(a) (*(x86_f64u*)(base + (uint32_t)(a)))
+#define X86_PTR(T, a) ((T*)(base + (uint32_t)(a)))
+
+// The recompiled code is built on the player's PC into a DLL beside the executable (app/game_code.cpp). The executable
+// exports the runtime and its overrides, which the DLL imports; a function with no override links to its body.
+#if defined(__APPLE__)
+// Mach-O has no __declspec or linker alternate names: visibility replaces the export, and the host's hook is found
+// through the flat namespace the image is linked with. noinline keeps a caller in this image from binding the body.
+#define X86_HOST_API __attribute__((visibility("default")))
+#define X86_HOST_EXPORT __attribute__((visibility("default"), noinline))
+// the generated body is emitted as impl; callers and the function table use name. Darwin has no alias attribute and an
+// assembler alias cannot be weak, so name is a weak thunk: the host's own definition replaces it, as /alternatename
+// did on Windows, and a call that is not replaced costs one predictable jump.
+#define X86_WEAK_FUNC(name, impl) \
+    extern "C" __attribute__((weak, noinline)) void name(X86Context& __restrict ctx, uint8_t* base) { impl(ctx, base); }
+#elif defined(X86_GAME_CODE)
+#define X86_HOST_API __declspec(dllimport)
+#define X86_HOST_EXPORT
+#define X86_WEAK_FUNC(name, impl) __pragma(comment(linker, "/alternatename:" #name "=" #impl))
+// the DLL links without a C runtime: the two symbols clang expects from one
+extern "C" __attribute__((used)) inline int _fltused = 0;
+#pragma comment(linker, "/alternatename:??_7type_info@@6B@=_fltused")  // catch clauses only compare type names
+#else
+#define X86_HOST_API __declspec(dllexport)
+#define X86_HOST_EXPORT __declspec(dllexport)
+#endif
+
+#define X86_FUNC(name) extern "C" X86_HOST_EXPORT void name(X86Context& __restrict ctx, uint8_t* base)
+#define X86_EXTERN_FUNC(name) extern "C" void name(X86Context& __restrict ctx, uint8_t* base)
+// [xbe] trace: logs the caller and arguments on entry, eax on return
+#define X86_TRACED_FUNC(name, impl, va)                                       \
+    extern "C" void name##_traced(X86Context& __restrict ctx, uint8_t* base) { \
+        uint32_t x86_ret = x86_trace(ctx, va, 0);                             \
+        impl(ctx, base);                                                      \
+        x86_trace(ctx, va, x86_ret);                                          \
+    }                                                                         \
+    X86_WEAK_FUNC(name, name##_traced)
+
+#define X86_PUSH32(v)            \
+    do {                         \
+        uint32_t _v = (v);       \
+        ctx.esp -= 4;            \
+        X86_MEM32(ctx.esp) = _v; \
+    } while (0)
+
+#define X86_SAVE_FLAGS() (ctx.cf = cf, ctx.zf = zf, ctx.sf = sf, ctx.of = of, ctx.pf = pf)
+#define X86_LOAD_FLAGS() uint32_t cf = ctx.cf, zf = ctx.zf, sf = ctx.sf, of = ctx.of, pf = ctx.pf
+#define X86_BARRIER() __asm__ volatile("" ::: "memory")
+#define X86_PARITY(r) ((uint32_t)(__builtin_parity((uint32_t)(r)&0xFF) ^ 1))
+
+#define X87_ST(i) ctx.st[(ctx.top + (i)) & 7]
+
+// runtime services, implemented in cpu/dispatch.cpp
+X86_HOST_API void x86_icall(X86Context& ctx, uint8_t* base, uint32_t target);
+// a jump to a C++ catch continuation unwinds the host stack to the frame that resumes there (esp as the CRT set it)
+struct X86Resume {
+    uint32_t target, esp;
+};
+X86_HOST_API void x86_resume(X86Context& ctx, uint8_t* base, const X86Resume& r);
+X86_HOST_API void x86_kernel(X86Context& ctx, uint8_t* base, uint32_t ordinal);
+[[noreturn]] X86_HOST_API void x86_trap(X86Context& ctx, uint32_t va, const char* what);
+X86_HOST_API void x86_priv(X86Context& ctx, uint32_t va, const char* what);
+// ret 0 on entry, returns the return address
+X86_HOST_API uint32_t x86_trace(X86Context& ctx, uint32_t va, uint32_t ret);
+X86_HOST_API uint64_t x86_rdtsc();
+X86_HOST_API void x86_cpuid(X86Context& ctx);
+
+inline void x87_push(X86Context& ctx, double v) {
+    ctx.top = (ctx.top - 1) & 7;
+    ctx.st[ctx.top] = v;
+}
+inline void x87_pop(X86Context& ctx) { ctx.top = (ctx.top + 1) & 7; }
+
+// precision control: results round to 24 bits when the control word asks for it, keeping the x87's exponent range
+// (a float cast would overflow to infinity or flush to zero where the FPU does not)
+inline double x87_prec(X86Context& ctx, double v) {
+    if ((ctx.fcw & 0x300) || v == 0.0 || !std::isfinite(v)) return v;
+    int e;
+    double m = std::frexp(v, &e);
+    return std::ldexp(std::nearbyint(std::ldexp(m, 24)), e - 24);
+}
+
+// C0 bit 8, C2 bit 10, C3 bit 14
+inline void x87_compare(X86Context& ctx, double a, double b) {
+    uint16_t c;
+    if (std::isnan(a) || std::isnan(b)) c = 0x4500;
+    else if (a > b) c = 0;
+    else if (a < b) c = 0x0100;
+    else c = 0x4000;
+    ctx.fsw = uint16_t((ctx.fsw & ~0x4500) | c);
+}
+
+// TOP lives in status word bits 11 to 13
+inline uint16_t x87_status(X86Context& ctx) { return uint16_t((ctx.fsw & ~0x3800) | ((ctx.top & 7) << 11)); }
+
+inline double x87_round(X86Context& ctx, double v) {
+    switch ((ctx.fcw >> 10) & 3) {  // control word RC field
+        case 0: return std::nearbyint(v);
+        case 1: return std::floor(v);
+        case 2: return std::ceil(v);
+        default: return std::trunc(v);
+    }
+}
+
+// out of range gives the integer indefinite value, as the FPU does
+inline int32_t x87_to_i32(X86Context& ctx, double v) {
+    double r = x87_round(ctx, v);
+    if (!(r >= -2147483648.0 && r <= 2147483647.0)) return INT32_MIN;
+    return int32_t(r);
+}
+inline int16_t x87_to_i16(X86Context& ctx, double v) {
+    double r = x87_round(ctx, v);
+    if (!(r >= -32768.0 && r <= 32767.0)) return INT16_MIN;
+    return int16_t(r);
+}
+inline int64_t x87_to_i64(X86Context& ctx, double v) {
+    double r = x87_round(ctx, v);
+    if (!(r >= -9223372036854775808.0 && r < 9223372036854775808.0)) return INT64_MIN;
+    return int64_t(r);
+}
+
+inline double x87_load80(const uint8_t* p) {
+    uint64_t mant;
+    uint16_t se;
+    std::memcpy(&mant, p, 8);
+    std::memcpy(&se, p + 8, 2);
+    int sign = se >> 15;
+    int exp = se & 0x7FFF;
+    double v;
+    if (exp == 0 && mant == 0) v = 0.0;
+    else if (exp == 0x7FFF) v = (mant << 1) ? NAN : INFINITY;
+    else v = std::ldexp(double(mant), exp - 16383 - 63);
+    return sign ? -v : v;
+}
+
+inline void x87_store80(uint8_t* p, double v) {
+    uint64_t mant = 0;
+    uint16_t se = std::signbit(v) ? 0x8000 : 0;
+    double a = std::fabs(v);
+    if (std::isnan(v)) {
+        se |= 0x7FFF;
+        mant = 0xC000000000000000ull;
+    } else if (std::isinf(v)) {
+        se |= 0x7FFF;
+        mant = 0x8000000000000000ull;
+    } else if (a != 0.0) {
+        int e;
+        double m = std::frexp(a, &e);  // a = m * 2^e, m in [0.5,1)
+        mant = uint64_t(std::ldexp(m, 64));
+        se |= uint16_t(e - 1 + 16383);
+    }
+    std::memcpy(p, &mant, 8);
+    std::memcpy(p + 8, &se, 2);
+}
+
+inline uint32_t x87_examine(X86Context& ctx) {
+    // FXAM class into C3 C2 C0, C1 = sign
+    double v = X87_ST(0);
+    uint16_t c;
+    if (std::isnan(v)) c = 0x0100;
+    else if (std::isinf(v)) c = 0x0500;
+    else if (v == 0.0) c = 0x4000;
+    else c = 0x0400;  // a double denormal is a normal number in the FPU's 80-bit format
+    if (std::signbit(v)) c |= 0x0200;
+    ctx.fsw = uint16_t((ctx.fsw & ~0x4700) | c);
+    return 0;
+}
+
+// FNSAVE: the 108 byte protected mode image (control, status, tags, zeroed pointers, ST(0) to ST(7) in 80 bits),
+// then the FPU initialises as FNINIT does
+inline void x87_save(X86Context& ctx, uint8_t* p) {
+    uint16_t tags = 0;
+    for (int i = 0; i < 8; i++) {
+        double v = ctx.st[i];
+        tags |= uint16_t((v == 0.0 ? 1 : std::isfinite(v) ? 0 : 2) << (2 * i));  // physical register order
+    }
+    uint32_t head[7] = {ctx.fcw, x87_status(ctx), tags, 0, 0, 0, 0};
+    std::memcpy(p, head, sizeof head);
+    for (int i = 0; i < 8; i++) x87_store80(p + 28 + 10 * i, X87_ST(i));
+    ctx.fcw = 0x37F;
+    ctx.fsw = 0;
+    ctx.top = 0;
+}
+
+inline void x87_restore(X86Context& ctx, const uint8_t* p) {
+    uint16_t cw, sw;
+    std::memcpy(&cw, p, 2);
+    std::memcpy(&sw, p + 4, 2);
+    ctx.fcw = cw;
+    ctx.fsw = sw;
+    ctx.top = (sw >> 11) & 7;
+    for (int i = 0; i < 8; i++) X87_ST(i) = x87_load80(p + 28 + 10 * i);
+}
+
+inline float sse_min(float a, float b) { return a < b ? a : b; }
+inline float sse_max(float a, float b) { return a > b ? a : b; }
+
+inline uint32_t sse_cmp(float a, float b, int pred) {
+    bool r;
+    switch (pred & 7) {
+        case 0: r = a == b; break;
+        case 1: r = a < b; break;
+        case 2: r = a <= b; break;
+        case 3: r = std::isnan(a) || std::isnan(b); break;
+        case 4: r = !(a == b); break;
+        case 5: r = !(a < b); break;
+        case 6: r = !(a <= b); break;
+        default: r = !(std::isnan(a) || std::isnan(b)); break;
+    }
+    return r ? 0xFFFFFFFFu : 0u;
+}
+
+inline int32_t sse_cvt(float v) {
+    float r = std::nearbyint(v);
+    if (!(r >= -2147483648.0f && r < 2147483648.0f)) return INT32_MIN;
+    return int32_t(r);
+}
+inline int32_t sse_cvtt(float v) {
+    if (!(v >= -2147483648.0f && v < 2147483648.0f)) return INT32_MIN;
+    return int32_t(v);
+}
+
+template <typename T>
+constexpr T sat(int64_t v) {
+    constexpr int64_t lo = std::numeric_limits<T>::min(), hi = std::numeric_limits<T>::max();
+    return T(v < lo ? lo : v > hi ? hi : v);
+}
+static_assert(sat<int16_t>(-300) == -300 && sat<int16_t>(40000) == 32767 && sat<int8_t>(-5) == -5);
+
+// lane wise helpers on 64 bit MMX values
+template <typename T, typename F>
+inline uint64_t mmx_map2(uint64_t a, uint64_t b, F f) {
+    constexpr int n = 8 / sizeof(T);
+    T x[n], y[n], r[n];
+    std::memcpy(x, &a, 8);
+    std::memcpy(y, &b, 8);
+    for (int i = 0; i < n; i++) r[i] = T(f(x[i], y[i]));
+    uint64_t out;
+    std::memcpy(&out, r, 8);
+    return out;
+}
+
+// rep movs: element by element semantics, fast path when the ranges cannot interfere
+inline void x86_rep_movs(X86Context& ctx, uint8_t* base, uint32_t w) {
+    uint32_t n = ctx.ecx;
+    if (!n) return;
+    uint32_t bytes = n * w;
+    if (!ctx.df && (ctx.edi - ctx.esi >= bytes || ctx.edi <= ctx.esi)) {
+        std::memmove(base + ctx.edi, base + ctx.esi, bytes);
+        ctx.esi += bytes;
+        ctx.edi += bytes;
+        ctx.ecx = 0;
+        return;
+    }
+    int32_t d = ctx.df ? -int32_t(w) : int32_t(w);
+    for (; n; n--) {
+        std::memcpy(base + ctx.edi, base + ctx.esi, w);
+        ctx.esi += d;
+        ctx.edi += d;
+    }
+    ctx.ecx = 0;
+}
+
+inline void x86_rep_stos(X86Context& ctx, uint8_t* base, uint32_t w) {
+    uint32_t n = ctx.ecx;
+    if (!n) return;
+    if (!ctx.df && w == 1) {
+        std::memset(base + ctx.edi, uint8_t(ctx.eax), n);
+        ctx.edi += n;
+        ctx.ecx = 0;
+        return;
+    }
+    int32_t d = ctx.df ? -int32_t(w) : int32_t(w);
+    uint32_t v = ctx.eax;
+    for (; n; n--) {
+        std::memcpy(base + ctx.edi, &v, w);
+        ctx.edi += d;
+    }
+    ctx.ecx = 0;
+}

@@ -1,0 +1,47 @@
+#pragma once
+// The same calls the C runtime's <cmath> makes; the executable passes its math functions on to the game code
+
+// as the Windows SDK's corecrt_math.h defines them for clang
+#define INFINITY ((float)(1e+300))
+#define NAN (__builtin_nanf("0"))
+
+#define FP_SUBNORMAL (-2)
+#define FP_NORMAL (-1)
+#define FP_ZERO 0
+#define FP_INFINITE 1
+#define FP_NAN 2
+
+namespace std {
+#define X86_MATH1(name)                                               \
+    inline double name(double v) { return __builtin_##name(v); }      \
+    inline float name(float v) { return __builtin_##name##f(v); }
+#define X86_MATH2(name)                                                        \
+    inline double name(double a, double b) { return __builtin_##name(a, b); }  \
+    inline float name(float a, float b) { return __builtin_##name##f(a, b); }
+X86_MATH1(sqrt)
+X86_MATH1(sin)
+X86_MATH1(cos)
+X86_MATH1(tan)
+X86_MATH1(log2)
+X86_MATH1(exp2)
+X86_MATH1(fabs)
+X86_MATH1(floor)
+X86_MATH1(ceil)
+X86_MATH1(trunc)
+X86_MATH1(nearbyint)
+X86_MATH2(atan2)
+X86_MATH2(fmod)
+X86_MATH2(remainder)
+#undef X86_MATH1
+#undef X86_MATH2
+inline double ldexp(double v, int e) { return __builtin_ldexp(v, e); }
+inline double frexp(double v, int* e) { return __builtin_frexp(v, e); }
+template <typename T>
+bool isnan(T v) { return __builtin_isnan(v); }
+template <typename T>
+bool isinf(T v) { return __builtin_isinf(v); }
+template <typename T>
+bool signbit(T v) { return __builtin_signbit(v); }
+template <typename T>
+int fpclassify(T v) { return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL, FP_ZERO, v); }
+}  // namespace std

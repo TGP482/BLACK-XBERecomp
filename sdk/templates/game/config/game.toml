@@ -1,0 +1,31 @@
+# Placeholder. build.bat replaces it on the first build with the config xbe_symbols writes for the game's XBE:
+#   out\build\release\xbe_symbols.exe assets\default.xbe <sdk>\xdk --library Game.dll --out config\game.toml
+# Names left at 0 become trapping stubs; find them in Ghidra
+# (python <sdk>\tools\symbols\xbe2pe.py config\game.toml game.exe) and fill them in by hand.
+[xbe]
+path = "assets/default.xbe"
+out = "generated/game"
+library = "Game.dll"  # <exe>.dll, which the executable delay loads
+partitions = 64
+
+# Optional fixes, added by hand:
+# data_ranges = [[0x00150000, 0x00150040]]  # in [xbe]: bytes in code sections that are never code, end exclusive
+#
+# [[hook]]                   # calls void FixSomething(X86Context& ctx, uint8_t* base), defined by the game
+# at = 0x0012ABCD            # guest instruction inside a recompiled function
+# call = "FixSomething"
+# after = false              # true runs it after the instruction (not after jumps or ret)
+# on_true = "ret"            # with on_true or on_false the hook returns bool: "ret" returns as the function's ret does,
+# on_false = 0x0012AC00      # an address jumps to that instruction of the same function
+#
+# [[function]]               # entry the analysis missed or ran past
+# at = 0x00123450
+# end = 0x00123520           # optional, decode no further (exclusive)
+#
+# [[switch]]                 # indirect jmp whose table detection was wrong
+# at = 0x00123480
+# targets = [0x00123490, 0x001234A8]
+#
+# [abi]
+# D3D_InternalRelease = ["esi"]            # argument locations in API order for a link time code generated library:
+# D3D_MakeRequestedSpace = ["eax", "stack"]  # a register, or "stack" for the next stack slot

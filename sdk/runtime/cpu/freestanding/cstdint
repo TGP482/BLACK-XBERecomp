@@ -1,0 +1,17 @@
+#pragma once
+// The game code is built without a C library: these stand in for the few headers x86_ops.h includes
+
+using int8_t = __INT8_TYPE__;
+using int16_t = __INT16_TYPE__;
+using int32_t = __INT32_TYPE__;
+using int64_t = __INT64_TYPE__;
+using uint8_t = __UINT8_TYPE__;
+using uint16_t = __UINT16_TYPE__;
+using uint32_t = __UINT32_TYPE__;
+using uint64_t = __UINT64_TYPE__;
+using uintptr_t = __UINTPTR_TYPE__;
+using size_t = __SIZE_TYPE__;
+
+#define INT16_MIN (-__INT16_MAX__ - 1)
+#define INT32_MIN (-__INT32_MAX__ - 1)
+#define INT64_MIN (-__INT64_MAX__ - 1)
