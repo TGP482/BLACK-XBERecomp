@@ -338,12 +338,14 @@ bool StreamFrame(Voice& v, float s[2]) {
         return false;
     }
     Packet& pk = v.packets.front();
+    // one division per frame, not one per channel: the packet's length stays put across the loop
+    uint32_t frames = FramesOf(v, pk.size);
     float t = float(v.pos - f);
     int channels = std::min<int>(v.channels, 2);
     for (int c = 0; c < channels; c++) {
         float now = Sample(v, pk.data, f, c);
         float next = now;
-        if (f + 1 < FramesOf(v, pk.size)) next = Sample(v, pk.data, f + 1, c);
+        if (f + 1 < frames) next = Sample(v, pk.data, f + 1, c);
         else if (v.packets.size() > 1) next = Sample(v, v.packets[1].data, 0, c);
         s[c] = now + (next - now) * t;
     }
