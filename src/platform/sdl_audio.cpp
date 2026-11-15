@@ -182,8 +182,7 @@ void Pump(Output& out, const std::function<void(float*, uint32_t)>& render) {
         // a starved queue crackles: keep one block more each time, up to kMaxQueued
         if (submitted && !queued && depth < kMaxQueued) {
             depth++;
-            g_diag_starved++;
-            LOGI("audio: output starved, queueing %u ms", depth * 10);
+            g_diag_starved++;  // DIAG(audio): the per second line reports the starves
         }
         // DIAG(audio): queued depth and starves per second; the build otherwise reports an underrun only once
         if (const char* diag = std::getenv("XBE_DIAG")) {

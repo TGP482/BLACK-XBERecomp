@@ -1359,10 +1359,7 @@ VkPipeline VulkanBackend::FullScreenPipeline(VkShaderModule vs, const char* vs_e
     PerfClock::time_point t = PerfClock::now();
     VkResult r = vkCreateGraphicsPipelines(ctx_.dev, cache_, 1, &pi, nullptr, &p);
     double pso_ms = PerfMs(t);
-    if (DiagOn()) {
-        g_diag.pso_ms += pso_ms;
-        LOGR("pipeline cache: pass pipeline in %.2f ms", pso_ms);
-    }
+    if (DiagOn()) g_diag.pso_ms += pso_ms;  // DIAG(pipeline cost): the per second line totals it
     if (r != VK_SUCCESS) LOGE("vulkan: pass pipeline failed");
     return p;
 }
@@ -1832,10 +1829,7 @@ VkPipeline VulkanBackend::EnsurePipeline(const PsoKey& k, VkShaderModule vs, VkS
     PerfClock::time_point t = PerfClock::now();
     VkResult r = vkCreateGraphicsPipelines(ctx_.dev, cache_, 1, &pi, nullptr, &p);
     double pso_ms = PerfMs(t);
-    if (DiagOn()) {
-        g_diag.pso_ms += pso_ms;
-        LOGR("pipeline cache: draw pipeline in %.2f ms", pso_ms);
-    }
+    if (DiagOn()) g_diag.pso_ms += pso_ms;  // DIAG(pipeline cost): the per second line totals it
     if (r != VK_SUCCESS) LOGE("vulkan: pipeline creation failed");
     psos_[h] = p;
     return p;
