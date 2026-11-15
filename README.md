@@ -92,3 +92,28 @@ Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) and 
 ### 4. Build the Project
 - Run `build.bat`. The first build recompiles the entire game and can take 30 to 90 minutes on weaker systems.
 - When it finishes, run `out\build\release\BLACK.exe`.
+
+## macOS
+### Requirements
+- Apple Silicon and macOS 14 or later. MoltenVK and D3DMetal both need 14; this port was developed on macOS 26.6 on an M1.
+- Install `cmake`, `ninja`, `sdl3`, `vulkan-loader`, `molten-vk`, `vulkan-tools` and `glslang` with Homebrew. Xcode command line tools provide clang.
+
+### Build
+- Place your game files in the `assets` folder first. Without `assets/default.xbe` at configure time, only the tools and host objects build.
+- Run `cmake --preset mac-release`, then `cmake --build out/build/mac-release --target Black -- -k 0`.
+- `tools/macos/unpack-iso.sh` extracts a disc image into `assets`, and `tools/macos/check-assets.sh` reports whether a folder has what the game needs to boot.
+
+### Run
+```
+VK_ICD_FILENAMES=$(brew --prefix molten-vk)/etc/vulkan/icd.d/MoltenVK_icd.json ./out/build/mac-release/BLACK
+```
+- `glslangValidator` must be on `PATH` for any shader that is not already compiled in `~/Library/Caches/black/shaders`.
+
+### Settings
+- `black.toml` beside the executable takes the same keys as the Windows port, and `logs/black.log` is written beside it.
+- `XBE_VERBOSE=1` keeps the info lines a release build drops, `XBE_PERF=1` adds the frame time block, and `XBE_DIAG=1` adds the temporary diagnostics.
+
+### Limits
+- There is no first run compile yet: the binary already contains the recompiled game code and must not be distributed.
+- The renderer is derived from CrownPark and carries no licence grant.
+- HDR and MSAA are unverified. The window is borderless or windowed, since Cocoa has no exclusive fullscreen mode.
