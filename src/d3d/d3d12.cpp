@@ -53,7 +53,9 @@ namespace gpu {
 namespace {
 
 constexpr int kFrames = 3;
-constexpr uint64_t kUploadSize = 64ull << 20;
+// a frame peaks at 11.7 MB of upload in measured runs, and anything over the ring gets its own buffer
+// a 2048x2048 rgba mip is 16 MiB, and the peak on top of it does not fit 16, hence 32
+constexpr uint64_t kUploadSize = 32ull << 20;
 constexpr uint32_t kSrvCount = 3 * 32768;
 constexpr uint32_t kSamplerCount = 2048;
 constexpr uint32_t kRtvCount = 1024;
@@ -1414,6 +1416,8 @@ D3D12Backend::Alloc D3D12Backend::Upload(uint64_t size, uint64_t align) {
     }
     // too big for the ring: a buffer of its own, released with the frame
     g_perf.overflow++;
+    LOG_FIRST(8, "upload: %.1f MB does not fit the %.0f MB ring, its own buffer this frame",
+              double(size) / 1048576.0, double(kUploadSize) / 1048576.0);
     ComPtr<ID3D12Resource> r;
     D3D12_HEAP_PROPERTIES hp{D3D12_HEAP_TYPE_UPLOAD};
     constexpr uint64_t kOwnAlign = 0x10000;  // a committed buffer's size granularity
