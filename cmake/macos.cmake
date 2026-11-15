@@ -41,6 +41,8 @@ target_include_directories(black_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${
     ${CMAKE_CURRENT_BINARY_DIR} ${SDK}/runtime/platform/compat)
 target_include_directories(black_host SYSTEM PRIVATE ${imgui_SOURCE_DIR})
 target_compile_options(black_host PRIVATE -fno-strict-aliasing)
+# vma's headers annotate for ObjC nullability and are not ours to fix
+target_compile_options(black_host PRIVATE -Wno-nullability-completeness)
 # the SDK's guest-call macros spell their conventions __declspec; the screens' windows and the SDL name them as values
 target_compile_options(black_host PRIVATE -fdeclspec)
 target_compile_definitions(black_host PRIVATE _stricmp=strcasecmp _strnicmp=strncasecmp)

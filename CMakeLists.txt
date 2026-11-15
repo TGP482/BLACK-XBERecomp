@@ -54,6 +54,9 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/assets/default.xbe)
     add_xbe_image(Black default.xbe game.toml ${GAME_PARTITIONS} game)
     set_target_properties(Black PROPERTIES OUTPUT_NAME BLACK)
+    if(APPLE)
+        target_compile_options(Black PRIVATE -Wno-nullability-completeness)  # vma's annotations, not ours
+    endif()
     if(WIN32)
         # build_info.h for the version resource, rewritten only when the commit changes
         find_package(Git QUIET)

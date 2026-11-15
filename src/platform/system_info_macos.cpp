@@ -17,7 +17,7 @@ void LogSystem() {
     char date[32] = {};
     std::strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
     LOGR("%ls, %s", kGame.title, date);
-    LOGR("Path: %ls", ExeDir().c_str());
+    LOGR("Path: %s", ExeDir().c_str());  // narrow here: fs::path::c_str() is char on POSIX
 
     utsname u{};
     if (uname(&u) == 0) LOGR("OS: %s %s (%s)", u.sysname, u.release, u.machine);
