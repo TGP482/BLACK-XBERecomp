@@ -26,3 +26,6 @@ black.toml
 
 # Local temporary folder
 .local
+
+# finder
+.DS_Store
