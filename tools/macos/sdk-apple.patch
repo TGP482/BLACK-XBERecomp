@@ -1,5 +1,5 @@
 diff --git a/sdk/cmake/XbeRecomp.cmake b/sdk/cmake/XbeRecomp.cmake
-index d498066..5834334 100644
+index d498066..bfb5f4c 100644
 --- a/sdk/cmake/XbeRecomp.cmake
 +++ b/sdk/cmake/XbeRecomp.cmake
 @@ -12,7 +12,12 @@ set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -143,7 +143,7 @@ index d498066..5834334 100644
      add_custom_target(recompile_${target} DEPENDS ${GEN}/codegen.stamp)
      file(GLOB GAME_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${game_dir}/*.cpp)
      # the xbe's SHA-1: the executable checks the game it finds is the release it was made from
-@@ -111,32 +158,73 @@ function(add_xbe_image target xbe config partitions game_dir)
+@@ -111,32 +158,81 @@ function(add_xbe_image target xbe config partitions game_dir)
      file(SHA1 ${xbe_file} xbe_sha1)
      set(XBE_HASH ${CMAKE_CURRENT_BINARY_DIR}/${target}_xbe.cpp)
      file(CONFIGURE OUTPUT ${XBE_HASH} CONTENT "extern const char kImageSha1[] = \"${xbe_sha1}\";\n")
@@ -156,13 +156,21 @@ index d498066..5834334 100644
 +    else()
 +        # the game's code and its hooks are one dylib beside the executable, as the DLL is on Windows. A release
 +        # leaves it out and the first start builds it from the player's own xbe.
-+        add_executable(${target} ${XBE_RUNTIME_SOURCES} ${XBE_HOST_SOURCES} ${GAME_SOURCES}
++        add_executable(${target} ${XBE_RUNTIME_SOURCES} ${XBE_HOST_SOURCES}
 +            ${XBE_IMGUI_SOURCES} ${XBE_HASH})
++        # the hooks are this project's own code: a static library the dylib links, so the exe stays host only
++        add_library(${target}_hooks STATIC ${GAME_SOURCES})
++        set_target_properties(${target}_hooks PROPERTIES POSITION_INDEPENDENT_CODE ON)
 +        add_library(${target}_code SHARED ${GEN_SOURCES})
++        target_link_libraries(${target}_code PRIVATE ${target}_hooks)
 +        set_target_properties(${target}_code PROPERTIES OUTPUT_NAME ${target} PREFIX "" SUFFIX ".dylib")
 +        set_source_files_properties(${GEN_SOURCES} PROPERTIES GENERATED TRUE)
 +        target_include_directories(${target}_code PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${XBE_SDK_DIR}/runtime ${GEN}
 +            ${XBE_SDK_DIR}/runtime/platform/compat)
++        target_include_directories(${target}_hooks PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${XBE_SDK_DIR}/runtime ${GEN}
++            ${XBE_SDK_DIR}/runtime/platform/compat)
++        target_compile_definitions(${target}_hooks PRIVATE _stricmp=strcasecmp _strnicmp=strncasecmp)
++        target_compile_options(${target}_hooks PRIVATE -fno-strict-aliasing -fdeclspec)
 +        target_compile_definitions(${target}_code PRIVATE _stricmp=strcasecmp _strnicmp=strncasecmp)
 +        target_compile_options(${target}_code PRIVATE -fno-strict-aliasing -fdeclspec
 +            -Wno-unused-label -Wno-parentheses-equality -Wno-unused-variable)
@@ -4900,69 +4908,6 @@ index e498150..33ba572 100644
 +}
 +
 +}  // namespace kernel
-diff --git a/sdk/tools/recomp/codegen.h b/sdk/tools/recomp/codegen.h
-index ed8a862..fadd7a1 100644
---- a/sdk/tools/recomp/codegen.h
-+++ b/sdk/tools/recomp/codegen.h
-@@ -36,6 +36,7 @@ private:
-     std::string Target(uint32_t t);  // goto or tail call
-     std::string Hex(uint32_t v) const;
-     std::string FuncName(uint32_t va) const;
-+    bool HookTarget(uint32_t va) const;
-     void Line(const std::string& s) { body_ += s; body_ += '\n'; }
-     void Unimpl(uint32_t va, const ZydisDecodedInstruction& in, const ZydisDecodedOperand* ops);
-     std::string Text(uint32_t va, const ZydisDecodedInstruction& in, const ZydisDecodedOperand* ops) const;
-diff --git a/sdk/tools/recomp/codegen_emit.cpp b/sdk/tools/recomp/codegen_emit.cpp
-index 586d838..cc20bc2 100644
---- a/sdk/tools/recomp/codegen_emit.cpp
-+++ b/sdk/tools/recomp/codegen_emit.cpp
-@@ -115,9 +115,14 @@ std::string CodeGen::EmitFunction(uint32_t entry) {
-     out += body_;
-     if (seh) out += "\t} catch (const X86Resume& r) {\n\t\tif (r.esp >= x86_frame) throw;\n\t\tx86_resume(ctx, base, r);\n\t}\n";
-     out += "}\n";
-+    // a replace hook defines the function's own name in the host: aliasing it here would define it twice
-     if (an_.cfg.trace.count(entry))
-         out += F("X86_TRACED_FUNC(%s, __imp__%s, 0x%XU)\n\n", FuncName(entry).c_str(), FuncName(entry).c_str(), entry);
--    else  // weak, so a host function of the same name replaces it
-+    else if (HookTarget(entry))
-+        // the executable defines this name: Apple leaves it undefined for the host, Windows aliases it as before
-+        out += F("#ifndef __APPLE__\nX86_WEAK_FUNC(%s, __imp__%s)\n#endif\n\n", FuncName(entry).c_str(),
-+                 FuncName(entry).c_str());
-+    else
-         out += F("X86_WEAK_FUNC(%s, __imp__%s)\n\n", FuncName(entry).c_str(), FuncName(entry).c_str());
-     return out;
- }
-@@ -174,6 +179,13 @@ bool CodeGen::CheckHooks(const std::vector<uint32_t>& funcs) const {
-     return ok;
- }
- 
-+// a replace hook: the executable defines the name, so the generated body is reached only through __imp_
-+bool CodeGen::HookTarget(uint32_t va) const {
-+    for (auto [it, e] = an_.cfg.hooks.equal_range(va); it != e; ++it)
-+        if (!it->second.after && it->second.call == FuncName(va)) return true;
-+    return false;
-+}
-+
- // the hook sees guest flags in ctx and may change them, so they are stored before and reloaded after
- void CodeGen::EmitHooks(uint32_t va, bool after) {
-     for (auto [it, e] = an_.cfg.hooks.equal_range(va); it != e; ++it) {
-@@ -304,6 +316,16 @@ bool CodeGen::Run() {
-     for (uint32_t c : an_.continuations) map += F("\t0x%Xu,\n", c);
-     map += "\t0,\n};\n";
-     if (an_.cfg.named) map += "\nconst X86Symbol X86Symbols[] = {\n" + rows + "\t{nullptr, 0},\n};\n";
-+    // a replace hook defines these names in the host, so the image does not alias them
-+    // a name the host binds to: a replace hook, or an entry from [symbols] that the host implements. Aliasing it here
-+    // would define it twice on Mach-O, where an alias cannot be weak.
-+    auto host_bound = [this](uint32_t va) {
-+        for (auto [it, e] = an_.cfg.hooks.equal_range(va); it != e; ++it)
-+            if (!it->second.after && it->second.call == FuncName(va)) return true;
-+        for (auto& [name, at] : an_.cfg.symbols)
-+            if (at && at == va) return true;
-+        return false;
-+    };
-     for (uint32_t f : absent) {
-         map += F("\nX86_FUNC(__imp__%s) { x86_trap(ctx, 0x%Xu, \"not in this image\"); }\n", FuncName(f).c_str(), f);
-         map += F("X86_WEAK_FUNC(%s, __imp__%s)\n", FuncName(f).c_str(), FuncName(f).c_str());
 diff --git a/sdk/tools/recomp/codegen_fp.cpp b/sdk/tools/recomp/codegen_fp.cpp
 index 559f112..2893c52 100644
 --- a/sdk/tools/recomp/codegen_fp.cpp

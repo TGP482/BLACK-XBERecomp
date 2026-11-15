@@ -16,5 +16,6 @@ clang++ -std=gnu++20 -arch arm64 -O2 -fdeclspec -fno-strict-aliasing \
     -I "$compiler/include" -I "$gen" \
     -dynamiclib -undefined dynamic_lookup -flat_namespace \
     "$gen"/x86_func_mapping.cpp "$gen"/x86_recomp.*.cpp \
+    "$compiler/libhooks.a" \
     -o BLACK.dylib
 echo "build-code: wrote BLACK.dylib"
