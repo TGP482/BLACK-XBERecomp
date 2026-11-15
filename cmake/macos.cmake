@@ -30,6 +30,8 @@ function(black_platform_image target)
     if(EXISTS ${EUROPE_CPP})
         target_sources(${target} PRIVATE ${EUROPE_CPP})
     endif()
+    # black_host compiles the SDK's headers too, so it waits for the symbols this image's recompile writes
+    add_dependencies(black_host recompile_${target})
 endfunction()
 
 # the host on its own, without the game's recompiled code: what compiles without assets/default.xbe. The image above
@@ -43,3 +45,5 @@ target_compile_options(black_host PRIVATE -fno-strict-aliasing)
 target_compile_options(black_host PRIVATE -fdeclspec)
 target_compile_definitions(black_host PRIVATE _stricmp=strcasecmp _strnicmp=strncasecmp)
 target_link_libraries(black_host PRIVATE tomlplusplus::tomlplusplus SDL3::SDL3 Vulkan::Vulkan GPUOpen::VulkanMemoryAllocator)
+# the SDK's headers include image_symbols.h (xdk/hle.h), which the recompiler writes to the image's folder above
+target_include_directories(black_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/generated/game)
