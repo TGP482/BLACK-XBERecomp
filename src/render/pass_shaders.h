@@ -4,7 +4,7 @@
 namespace gpu {
 
 inline constexpr const char* kBlitHlsl = R"(
-cbuffer B : register(b1) { float4 uvrect; float4 opts; };
+cbuffer B : register(b1) { float4 uvrect; float4 opts; float4 colour[3]; };
 Texture2D img : register(t0);
 Texture2D lut : register(t1);
 SamplerState ls : register(s0);
@@ -26,6 +26,12 @@ float4 psmain(O i) : SV_Target {
     c /= n * n;
     c.rgb *= opts.w;
     if (opts.x > 0) c.rgb = float3(lut.Sample(ps, float2(c.r, 0.5)).r, lut.Sample(ps, float2(c.g, 0.5)).g, lut.Sample(ps, float2(c.b, 0.5)).b);
+    // opts.x 2 and over: colour[]'s rows hold a matrix, applied in linear light. The flag can't ride in a spare colour[]
+    // channel: Blit fills only the two float4s before them, so a plain blit would read the upload ring's leftovers
+    if (opts.x >= 2) {
+        float3x3 m = float3x3(colour[0].xyz, colour[1].xyz, colour[2].xyz);
+        c.rgb = pow(saturate(mul(m, pow(saturate(c.rgb), 2.2))), 1 / 2.2);
+    }
     return float4(c.rgb, opts.y > 0 ? c.a : 1);
 }
 )";

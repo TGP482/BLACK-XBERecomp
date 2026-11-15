@@ -123,37 +123,6 @@ std::array<float, 9> ColourBlindMatrix(uint32_t mode) {
     return m;
 }
 
-// kBlitHlsl with a colour matrix: its rows ride in the rest of b1, so no buffer or pipeline per mode. BlitFrame draws
-// it into the frame before the panel goes over, and only for mode 1 to 3
-constexpr const char* kColourBlindHlsl = R"(
-cbuffer B : register(b1) { float4 uvrect; float4 opts; float4 colour[3]; };
-Texture2D img : register(t0);
-Texture2D lut : register(t1);
-SamplerState ls : register(s0);
-SamplerState ps : register(s1);
-struct O { float4 p : SV_Position; float2 uv : TEXCOORD0; };
-O vs(uint id : SV_VertexID) {
-    O o;
-    float2 t = float2((id << 1) & 2, id & 2);
-    o.p = float4(t * float2(2, -2) + float2(-1, 1), 0, 1);
-    o.uv = uvrect.xy + t * uvrect.zw;
-    return o;
-}
-float4 psmain(O i) : SV_Target {
-    float4 c = 0;
-    int n = max((int)opts.z, 1);
-    float2 px = fwidth(i.uv);
-    for (int y = 0; y < n; y++)
-        for (int x = 0; x < n; x++) c += img.SampleLevel(ls, i.uv + px * ((float2(x, y) + 0.5) / n - 0.5), 0);
-    c /= n * n;
-    c.rgb *= opts.w;
-    if (opts.x > 0) c.rgb = float3(lut.Sample(ps, float2(c.r, 0.5)).r, lut.Sample(ps, float2(c.g, 0.5)).g, lut.Sample(ps, float2(c.b, 0.5)).b);
-    float3x3 m = float3x3(colour[0].xyz, colour[1].xyz, colour[2].xyz);
-    c.rgb = pow(saturate(mul(m, pow(saturate(c.rgb), 2.2))), 1 / 2.2);
-    return float4(c.rgb, opts.y > 0 ? c.a : 1);
-}
-)";
-
 }  // namespace
 
 // ---------------------------------------------------------------- the settings panel
@@ -376,15 +345,16 @@ void VulkanBackend::BlitFrame(Target& t, Image& r, VkFormat rtv) {
     SetScissor(0, 0, int32_t(w), int32_t(h));
     float uv[4] = {0, 0, 1, 1};
     (void)t;
-    // off is the plain blit: no extra pass, no matrix
+    // off is the plain blit; a mode only fills the rows in the blit's own b1, so both use the one pipeline
     uint32_t mode = std::min(game::Opt().colour_blind, 3u);
-    VkPipeline pso = mode ? EnsurePassPipeline(kColourBlindHlsl, "vs", "psmain", rtv, -1) : VK_NULL_HANDLE;
+    VkPipeline pso = mode ? EnsureBlitPipeline(rtv, false, 1) : VK_NULL_HANDLE;
     if (!pso) {
         Blit(r, uv, {.gamma = gamma_, .rtv = rtv});
         return;
     }
     std::array<float, 9> m = ColourBlindMatrix(mode);
-    float c[20] = {uv[0], uv[1], uv[2], uv[3], gamma_ ? 1.0f : 0.0f, 0.0f, 1.0f, 1.0f};
+    // opts.x 2: through the lookup as opts.x 1 does, then the matrix
+    float c[20] = {uv[0], uv[1], uv[2], uv[3], (gamma_ ? 1.0f : 0.0f) + 2.0f, 0.0f, 1.0f, 1.0f};
     for (int row = 0; row < 3; row++) std::memcpy(c + 8 + row * 4, m.data() + row * 3, 3 * sizeof(float));
     Image* tex[4] = {&r, lut_.get(), nullptr, nullptr};
     DrawFullScreen(pso, c, sizeof(c), tex, BlitSampler(true), BlitSampler(false));
