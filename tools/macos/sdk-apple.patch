@@ -4913,31 +4913,26 @@ index ed8a862..fadd7a1 100644
      void Unimpl(uint32_t va, const ZydisDecodedInstruction& in, const ZydisDecodedOperand* ops);
      std::string Text(uint32_t va, const ZydisDecodedInstruction& in, const ZydisDecodedOperand* ops) const;
 diff --git a/sdk/tools/recomp/codegen_emit.cpp b/sdk/tools/recomp/codegen_emit.cpp
-index 586d838..5e0b8f0 100644
+index 586d838..cc20bc2 100644
 --- a/sdk/tools/recomp/codegen_emit.cpp
 +++ b/sdk/tools/recomp/codegen_emit.cpp
-@@ -115,9 +115,19 @@ std::string CodeGen::EmitFunction(uint32_t entry) {
+@@ -115,9 +115,14 @@ std::string CodeGen::EmitFunction(uint32_t entry) {
      out += body_;
      if (seh) out += "\t} catch (const X86Resume& r) {\n\t\tif (r.esp >= x86_frame) throw;\n\t\tx86_resume(ctx, base, r);\n\t}\n";
      out += "}\n";
 +    // a replace hook defines the function's own name in the host: aliasing it here would define it twice
-+    // a name the host binds to: a replace hook, or an entry from [symbols] that the host implements. Aliasing it here
-+    // would define it twice on Mach-O, where an alias cannot be weak.
-+    auto host_bound = [this](uint32_t va) {
-+        for (auto [it, e] = an_.cfg.hooks.equal_range(va); it != e; ++it)
-+            if (!it->second.after && it->second.call == FuncName(va)) return true;
-+        for (auto& [name, at] : an_.cfg.symbols)
-+            if (at && at == va) return true;
-+        return false;
-+    };
      if (an_.cfg.trace.count(entry))
          out += F("X86_TRACED_FUNC(%s, __imp__%s, 0x%XU)\n\n", FuncName(entry).c_str(), FuncName(entry).c_str(), entry);
 -    else  // weak, so a host function of the same name replaces it
-+    else if (!HookTarget(entry))  // the executable defines this one, so the body has no name to alias
++    else if (HookTarget(entry))
++        // the executable defines this name: Apple leaves it undefined for the host, Windows aliases it as before
++        out += F("#ifndef __APPLE__\nX86_WEAK_FUNC(%s, __imp__%s)\n#endif\n\n", FuncName(entry).c_str(),
++                 FuncName(entry).c_str());
++    else
          out += F("X86_WEAK_FUNC(%s, __imp__%s)\n\n", FuncName(entry).c_str(), FuncName(entry).c_str());
      return out;
  }
-@@ -174,6 +184,13 @@ bool CodeGen::CheckHooks(const std::vector<uint32_t>& funcs) const {
+@@ -174,6 +179,13 @@ bool CodeGen::CheckHooks(const std::vector<uint32_t>& funcs) const {
      return ok;
  }
  
@@ -4951,7 +4946,7 @@ index 586d838..5e0b8f0 100644
  // the hook sees guest flags in ctx and may change them, so they are stored before and reloaded after
  void CodeGen::EmitHooks(uint32_t va, bool after) {
      for (auto [it, e] = an_.cfg.hooks.equal_range(va); it != e; ++it) {
-@@ -304,6 +321,16 @@ bool CodeGen::Run() {
+@@ -304,6 +316,16 @@ bool CodeGen::Run() {
      for (uint32_t c : an_.continuations) map += F("\t0x%Xu,\n", c);
      map += "\t0,\n};\n";
      if (an_.cfg.named) map += "\nconst X86Symbol X86Symbols[] = {\n" + rows + "\t{nullptr, 0},\n};\n";
