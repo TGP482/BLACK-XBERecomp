@@ -24,5 +24,8 @@ black.toml
 .vscode/
 .idea/
 
+# finder
+.DS_Store
+
 # Local temporary folder
 .local
