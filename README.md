@@ -104,6 +104,7 @@ Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) and 
 - Place your game files in an `assets` folder at the repository root first; without `assets/default.xbe` at configure time, only the tools and host objects build.
 - Run `cmake --preset mac-release`, then `cmake --build out/build/mac-release --target Black -- -k 0`. Configure and build take about five minutes on an M1, of which the game's recompile is most of it.
 - `tools/macos/unpack-iso.sh` extracts a disc image into `assets`, and `tools/macos/check-assets.sh` reports whether a folder has what the game needs to boot.
+- A release ships `BLACK`, `compiler/` and an empty `assets/`; `compiler/build-code.sh` builds `BLACK.dylib` from the player's own xbe on the first start. Neither that dylib nor `generated/` is distributed.
 
 ### Run
 ```

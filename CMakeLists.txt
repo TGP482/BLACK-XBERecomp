@@ -56,6 +56,9 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/assets/default.xbe)
     set_target_properties(Black PROPERTIES OUTPUT_NAME BLACK)
     if(APPLE)
         target_compile_options(Black PRIVATE -Wno-nullability-completeness)  # vma's annotations, not ours
+        # the game's code is a dylib beside the executable, so its symbols resolve at run time
+        target_link_options(Black PRIVATE -undefined dynamic_lookup)
+        set_target_properties(Black_code PROPERTIES OUTPUT_NAME BLACK)
     endif()
     if(WIN32)
         # build_info.h for the version resource, rewritten only when the commit changes
