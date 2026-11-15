@@ -13,19 +13,14 @@ existence on macOS 26 / Homebrew at `/opt/homebrew`; `brew --prefix <formula>` p
 | Vulkan Memory Allocator | MIT | `vendor/crownpark-full/third_party/vma-src/LICENSE.txt` | header-only, compiled in |
 | Zydis / Zycore | MIT | `vendor/crownpark-full/third_party/zydis-src/LICENSE`, `.../zycore/LICENSE` | build tools only (`xbe_recomp`, `xbe_symbols`), not shipped |
 | glslang | BSD-3-Clause | `$(brew --prefix glslang)/LICENSE.txt` | authoring only (`tools/macos/hlsl2spv.sh` calls `glslangValidator`) |
-| XboxXBE-Recomp SDK | MIT, TGP482 | `sdk/LICENSE` | not vendored: `tools/macos/sdk-apple.patch` applies TGP482's MIT tree, cloned into `sdk/`, and is compiled in; the files it adds from CrownPark's port (`runtime/app/main_sdl`, `window_sdl`, `runtime/gpu/vk_*`) carry no grant, see below |
+| XboxXBE-Recomp SDK | MIT, TGP482 | `sdk/LICENSE` | not vendored: `tools/macos/sdk-apple.patch` applies TGP482's MIT tree, cloned into `sdk/`, and is compiled in; `runtime/app/main_sdl`, `window_sdl` and `runtime/gpu/vk_*` come from CrownPark's port |
 
 glslang appears nowhere in `build.ninja`; the shipped executable links only SDL3, vulkan-loader and libSystem.
 
 ## CrownPark-derived files
 
-Sources taken from `vendor/crownpark-full` carry no licence grant of their own, and the ones `sdk-apple.patch` adds to the SDK are no exception. `THIRD_PARTY.md` says:
+The Vulkan renderer and part of the host come from CrownParkComputing's xbox-recomp-suite: `src/vk`,
+`runtime/app/main_sdl.cpp`, `runtime/app/window_sdl.cpp`, `runtime/gpu/vk_*`, `runtime/platform/compat`, and the
+BLACK-specific window, cursor, monitor and input sources. The patch adds the SDK copies of the same files.
 
-> No new blanket license is assigned to the combined port snapshots.
-
-and, above the table,
-
-> This import does not relicense individual components or claim upstream work.
-
-Those files must not be redistributed until the licence question is settled; the notices above cover only the components
-listed, not the port sources themselves.
+https://github.com/CrownParkComputing/xbox-recomp-suite
