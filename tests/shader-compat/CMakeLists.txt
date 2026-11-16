@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(black_shader_compat_tests LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_executable(shader_compat_test shader_compat_test.cpp)
+target_include_directories(shader_compat_test PRIVATE ../../src)
+target_link_libraries(shader_compat_test PRIVATE d3dcompiler)
