@@ -1,5 +1,5 @@
 diff --git a/sdk/cmake/XbeRecomp.cmake b/sdk/cmake/XbeRecomp.cmake
-index d498066..bfb5f4c 100644
+index d498066..5f49a75 100644
 --- a/sdk/cmake/XbeRecomp.cmake
 +++ b/sdk/cmake/XbeRecomp.cmake
 @@ -12,7 +12,12 @@ set(ZYDIS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -143,7 +143,7 @@ index d498066..bfb5f4c 100644
      add_custom_target(recompile_${target} DEPENDS ${GEN}/codegen.stamp)
      file(GLOB GAME_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/${game_dir}/*.cpp)
      # the xbe's SHA-1: the executable checks the game it finds is the release it was made from
-@@ -111,32 +158,81 @@ function(add_xbe_image target xbe config partitions game_dir)
+@@ -111,32 +158,82 @@ function(add_xbe_image target xbe config partitions game_dir)
      file(SHA1 ${xbe_file} xbe_sha1)
      set(XBE_HASH ${CMAKE_CURRENT_BINARY_DIR}/${target}_xbe.cpp)
      file(CONFIGURE OUTPUT ${XBE_HASH} CONTENT "extern const char kImageSha1[] = \"${xbe_sha1}\";\n")
@@ -161,6 +161,7 @@ index d498066..bfb5f4c 100644
 +        # the hooks are this project's own code: a static library the dylib links, so the exe stays host only
 +        add_library(${target}_hooks STATIC ${GAME_SOURCES})
 +        set_target_properties(${target}_hooks PROPERTIES POSITION_INDEPENDENT_CODE ON)
++        add_dependencies(${target}_hooks recompile_${target})  # the hooks include the generated image_symbols.h
 +        add_library(${target}_code SHARED ${GEN_SOURCES})
 +        target_link_libraries(${target}_code PRIVATE ${target}_hooks)
 +        set_target_properties(${target}_code PROPERTIES OUTPUT_NAME ${target} PREFIX "" SUFFIX ".dylib")
