@@ -81,6 +81,11 @@ Place your extracted game data files in the `assets` folder. `default.xbe` from 
 
 
 ### 3. Install Dependencies
+The output is a Windows x64 executable on either build host. Linux builds use
+Clang and the Microsoft headers/libraries supplied by xwin; they can be run
+through Proton. Wine/Proton is not needed to compile.
+
+#### Windows
 Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) and select the following **Workloads** and **Individual components**:
 - Desktop development with C++
 - C++ Clang tools for Windows
@@ -89,6 +94,59 @@ Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) and 
 > [!TIP]
 > `build.bat` offers to install the Clang and CMake components for you if they're missing.
 
+#### Linux
+Install Git, CMake 3.25 or newer, Make, a native C/C++ compiler, and LLVM with
+`clang-cl`, `lld-link`, `llvm-lib`, `llvm-rc`, and `llvm-mt` on `PATH`.
+Install [xwin](https://github.com/Jake-Shadle/xwin) using Cargo or a release binary,
+then download the Windows x64 SDK and CRT (the command accepts Microsoft's license):
+
+```sh
+cargo install xwin --locked
+xwin --accept-license --cache-dir "$HOME/.cache/xwin" splat --output "$HOME/.local/share/xwin"
+export XWIN_ROOT="$HOME/.local/share/xwin"
+```
+
 ### 4. Build the Project
+#### Windows
 - Run `build.bat`. The first build recompiles the entire game and can take 30 to 90 minutes on weaker systems.
 - When it finishes, run `out\build\release\BLACK.exe`.
+
+#### Linux
+With the USA game files extracted into `assets` as described above:
+
+```sh
+cmake --preset linux-release
+cmake --build --preset linux-release --parallel 2
+```
+
+Increase `--parallel` if memory permits. The build compiles a native Linux
+`xbe_recomp` to generate C++, then uses `clang-cl` and `lld-link` to produce
+`out/build/linux-release/BLACK.exe` and `Black.dll`. Add `BLACK.exe` to Steam as
+a non-Steam game and select Proton in its Compatibility settings. Keep `Black.dll`
+beside the executable; the runtime finds the repository's `assets` directory.
+Proton's built-in `d3dcompiler_47` is supported: the renderer converts the SDK's
+FXC-specific infinity literals to bit-exact HLSL `asfloat` expressions before
+compilation. No Microsoft shader compiler DLL is needed under Proton. If your
+prefix already overrides that DLL, select the built-in compiler in Steam's launch options:
+
+```sh
+WINEDLLOVERRIDES="d3dcompiler_47=b" %command%
+```
+
+For a standalone Proton folder, copy both binaries and the full `assets` directory.
+A Windows distribution still uses the runtime DLLs listed in `release.bat`,
+including the x64 Microsoft shader compiler from the Windows SDK's `Redist/D3D/x64`
+directory. xwin supplies build headers and libraries, not that runtime DLL.
+
+The Linux preset does not bundle Windows LLVM executables: the game DLL is already
+compiled. To make a distribution that can recompile on first launch, configure with
+`-DBLACK_BUNDLE_COMPILER=ON -DBLACK_WINDOWS_LLVM_BIN=/path/to/windows/llvm/bin`
+and include the compiler folder and runtime DLLs described in `release.bat`.
+Do not substitute Linux LLVM binaries in that folder.
+
+Both builds use the pinned XboxXBE-Recomp SDK revision. A local `sdk` directory
+or sibling `XboxXBE-Recomp` checkout overrides the download; use revision
+`91146ff6e2a218b19c1109dc665d06020472ab57` for those checkouts too. Build orchestration
+lives in `cmake/XbeRecomp.cmake` so host tools and target tools stay separate without
+patching the SDK. `BLACK_HOST_C_COMPILER` and `BLACK_HOST_CXX_COMPILER` can override
+the native compilers used during a cross-build.

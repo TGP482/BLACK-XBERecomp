@@ -1,6 +1,7 @@
 # build
 /out/
 /build/
+/sdk/
 *.zip
 *.pdb
 *.exe
@@ -18,6 +19,7 @@ black.toml
 /logs/
 /hdd/
 /CrashDumps/
+/vkd3d-proton.cache*
 
 # editors
 .vs/

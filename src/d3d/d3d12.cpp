@@ -36,6 +36,7 @@
 #include "core/diag.h"
 #include "core/log.h"
 #include "d3d/occlusion.h"
+#include "d3d/shader_compat.h"
 #include "d3d/smaa_shader.h"
 #include "d3d/smaa_textures.h"
 #include "gpu/backend.h"
@@ -1923,7 +1924,8 @@ void D3D12Backend::Blit(ID3D12Resource* src, DXGI_FORMAT fmt, const float uvrect
     DrawFullScreen(EnsureBlitPipeline(o.rtv, o.over, o.samples), cb.gpu, slot, si);
 }
 
-ID3DBlob* D3D12Backend::Compile(const std::string& src, const char* entry, const char* profile, uint64_t& hash) {
+ID3DBlob* D3D12Backend::Compile(const std::string& source, const char* entry, const char* profile, uint64_t& hash) {
+    const std::string src = PortableShaderHlsl(source);
     // one source can hold several entry points
     uint64_t profile_seed = Hash(profile, std::strlen(profile));
     uint64_t entry_seed = Hash(entry, std::strlen(entry), profile_seed);

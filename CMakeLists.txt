@@ -13,11 +13,14 @@ elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../XboxXBE-Recomp/cmake/XbeRecomp.cmak
     set(SDK ${CMAKE_CURRENT_SOURCE_DIR}/../XboxXBE-Recomp)
 else()
     include(FetchContent)
-    FetchContent_Declare(xbe_sdk GIT_REPOSITORY https://github.com/TGP482/XboxXBE-Recomp.git GIT_TAG main)
+    # The game's GPU overrides implement this SDK revision's interface.
+    FetchContent_Declare(xbe_sdk GIT_REPOSITORY https://github.com/TGP482/XboxXBE-Recomp.git
+                        GIT_TAG 91146ff6e2a218b19c1109dc665d06020472ab57)
     FetchContent_MakeAvailable(xbe_sdk)
     set(SDK ${xbe_sdk_SOURCE_DIR})
 endif()
-include(${SDK}/cmake/XbeRecomp.cmake)
+# Keep the host/target build orchestration here; the SDK supplies runtime and tool sources.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/XbeRecomp.cmake)
 # src/sound, src/d3d, src/audio, src/app/game_code.cpp and src/common/game_files.cpp replace the SDK ones
 list(FILTER XBE_RUNTIME_SOURCES EXCLUDE REGEX "/(xdk/dsound|xdk/d3d8|gpu/d3d12|gpu/render_thread|audio/xaudio2|app/game_code|app/game_files)\\.cpp$")
 
