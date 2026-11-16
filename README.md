@@ -92,3 +92,30 @@ Install [Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) and 
 ### 4. Build the Project
 - Run `build.bat`. The first build recompiles the entire game and can take 30 to 90 minutes on weaker systems.
 - When it finishes, run `out\build\release\BLACK.exe`.
+
+## macOS
+### Requirements
+- Apple Silicon, macOS 14 or later.
+- `brew install cmake ninja sdl3 vulkan-loader molten-vk vulkan-tools glslang`. Xcode command line tools provide clang.
+
+### Build
+- Clone the MIT SDK into `sdk/` and apply the patch: `git clone https://github.com/TGP482/XboxXBE-Recomp sdk`, then `git apply tools/macos/sdk-apple.patch`. The patch is cut against `cc9edda`; a later upstream commit may need a rebase.
+- Put the game in `assets` at the repository root. Without `assets/default.xbe` at configure time, only the tools and host objects build.
+- `cmake --preset mac-release`, then `cmake --build out/build/mac-release --target Black Black_code -- -k 0`. Five minutes on an M1, most of it the game's recompile.
+- `tools/macos/unpack-iso.sh` extracts a disc image. `tools/macos/check-assets.sh` says whether a folder can boot.
+- A release ships `BLACK`, `compiler/` (with `libhooks.a`) and an empty `assets/`. `compiler/build-code.sh` writes `BLACK.dylib` from the player's own xbe on first start; neither the dylib nor `generated/` is distributed.
+
+### Run
+```
+VK_ICD_FILENAMES=$(brew --prefix molten-vk)/etc/vulkan/icd.d/MoltenVK_icd.json ./out/build/mac-release/BLACK
+```
+- `glslangValidator` on `PATH` for shaders not yet in `~/Library/Caches/black/shaders`.
+
+### Settings
+- `black.toml` beside the executable, same keys as Windows. `logs/black.log` beside it.
+- `XBE_VERBOSE=1` keeps the info lines a release build drops. `XBE_PERF=1` adds frame times, `XBE_DIAG=1` the temporary diagnostics.
+
+### Limits
+- HDR and MSAA are unverified. The window is borderless or windowed; Cocoa has no exclusive fullscreen.
+- `BLACK.dylib` is a build product. Do not ship it or `generated/`.
+

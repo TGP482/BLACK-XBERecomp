@@ -24,12 +24,12 @@
 #include "common/aspect.h"
 #include "common/menu.h"
 #include "common/options.h"
+#include "common/platform_input.h"
 
 namespace input {
 
 namespace {
 
-HWND g_hwnd = nullptr;
 std::atomic<int> g_dx{0};
 std::atomic<int> g_dy{0};
 std::atomic<uint64_t> g_take_ms{0};     // TakeMouse, asked every tick in play
@@ -139,21 +139,6 @@ constexpr Name kNames[] = {
 // not bindable: in the game's menus the arrows are the dpad, Enter accepts, Backspace backs out
 constexpr int kFixed[] = {VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_RETURN, VK_BACK};
 
-// US layout scan codes of the keys that move with the layout: a bind names the US key at that position
-struct Position {
-    int vk;
-    UINT scan;
-};
-constexpr Position kPositions[] = {
-    {'1', 0x02}, {'2', 0x03}, {'3', 0x04}, {'4', 0x05}, {'5', 0x06}, {'6', 0x07}, {'7', 0x08}, {'8', 0x09},
-    {'9', 0x0A}, {'0', 0x0B}, {VK_OEM_MINUS, 0x0C}, {VK_OEM_PLUS, 0x0D},
-    {'Q', 0x10}, {'W', 0x11}, {'E', 0x12}, {'R', 0x13}, {'T', 0x14}, {'Y', 0x15}, {'U', 0x16}, {'I', 0x17},
-    {'O', 0x18}, {'P', 0x19}, {VK_OEM_4, 0x1A}, {VK_OEM_6, 0x1B},
-    {'A', 0x1E}, {'S', 0x1F}, {'D', 0x20}, {'F', 0x21}, {'G', 0x22}, {'H', 0x23}, {'J', 0x24}, {'K', 0x25},
-    {'L', 0x26}, {VK_OEM_1, 0x27}, {VK_OEM_7, 0x28}, {VK_OEM_3, 0x29}, {VK_OEM_5, 0x2B},
-    {'Z', 0x2C}, {'X', 0x2D}, {'C', 0x2E}, {'V', 0x2F}, {'B', 0x30}, {'N', 0x31}, {'M', 0x32},
-    {VK_OEM_COMMA, 0x33}, {VK_OEM_PERIOD, 0x34}, {VK_OEM_2, 0x35},
-};
 
 using Binds = std::array<std::vector<int>, kCount>;
 std::mutex g_bind_lock;
@@ -171,40 +156,13 @@ const char* NameOf(int vk) {
     return nullptr;
 }
 
-UINT ScanOf(int vk) {
-    for (const Position& p : kPositions)
-        if (p.vk == vk) return p.scan;
-    return 0;
-}
-
-// the keyboard layout the player types with, switched per window thread
-HKL Layout() { return GetKeyboardLayout(GetWindowThreadProcessId(g_hwnd, nullptr)); }
-
-// the key the current layout has at the bind's position
-int LiveVk(int vk) {
-    UINT scan = ScanOf(vk);
-    if (!scan) return vk;
-    UINT live = MapVirtualKeyExW(scan, MAPVK_VSC_TO_VK_EX, Layout());
-    return live ? int(live) : vk;
-}
-
-// a key the window was sent, as the position bound to it
-int PositionVk(int live) {
-    if (NameOf(live) && !ScanOf(live)) return live;
-    UINT scan = MapVirtualKeyExW(UINT(live), MAPVK_VK_TO_VSC, Layout());
-    for (const Position& p : kPositions)
-        if (p.scan == scan) return p.vk;
-    return live;
-}
-
 // the key as the player's keyboard labels it
 std::string Label(int vk) {
-    int live = LiveVk(vk);
+    int live = os::LiveVk(vk);
     if (live == vk) return NameOf(vk);
     bool alnum = (live >= 'A' && live <= 'Z') || (live >= '0' && live <= '9');
     if (alnum) return std::string(1, char(live));
-    // the top bit flags a dead key
-    UINT c = MapVirtualKeyExW(UINT(live), MAPVK_VK_TO_CHAR, Layout()) & 0x7FFF;
+    uint32_t c = os::KeyChar(live);
     // a comma would split the key list
     if (c == ',') return NameOf(VK_OEM_COMMA);
     if (c > ' ' && c < 0x7F) return std::string(1, char(c));
@@ -233,12 +191,12 @@ std::string Join(const std::vector<int>& vks, bool labels = false) {
     return s;
 }
 
-bool Foreground() { return g_hwnd && GetForegroundWindow() == g_hwnd; }
+bool Foreground() { return os::Foreground(); }
 bool Active() { return Foreground() && !app::MenuOpen(); }
 bool Wheel(int vk) { return vk == kWheelUp || vk == kWheelDown; }
 bool Down(int vk) {
     if (Wheel(vk)) return NowMs() - g_wheel_ms[vk == kWheelDown] < kTapMs;
-    return GetAsyncKeyState(LiveVk(vk)) < 0;
+    return os::KeyDown(vk);
 }
 bool Mouse(int vk) {
     bool button = vk == VK_LBUTTON || vk == VK_RBUTTON || vk == VK_MBUTTON || vk == VK_XBUTTON1 || vk == VK_XBUTTON2;
@@ -249,25 +207,16 @@ bool Play() { return NowMs() - g_take_ms < kPlayMs; }
 bool GameDown(int vk) { return Down(vk) && !(g_menu && vk == VK_DELETE); }
 bool KeyCaptureUp() { return NowMs() - g_capture_ms <= kCaptureMs; }
 
-void Clip() {
-    RECT r;
-    RECT cur;
-    GetClientRect(g_hwnd, &r);
-    MapWindowPoints(g_hwnd, nullptr, reinterpret_cast<POINT*>(&r), 2);
-    if (!GetClipCursor(&cur) || !EqualRect(&r, &cur)) ClipCursor(&r);
-}
+void Clip() { os::Clip(true); }
 
-// Windows asks for the cursor only when the mouse moves
-void RefreshCursor() {
-    if (g_hwnd) PostMessageW(g_hwnd, WM_SETCURSOR, WPARAM(g_hwnd), MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
-}
+void RefreshCursor() { os::RefreshCursor(); }
 
 // the action is bound to this key and no key capture wants it
 bool HostKeyBound(size_t action, int vk) {
     if (KeyCaptureUp()) return false;
     std::lock_guard lock(g_bind_lock);
     const auto& b = g_binds[action];
-    return std::find(b.begin(), b.end(), PositionVk(vk)) != b.end();
+    return std::find(b.begin(), b.end(), os::PositionVk(vk)) != b.end();
 }
 
 void SetKeyboard(bool on) {
@@ -329,40 +278,33 @@ Held PressActions(const Binds& binds, bool play, Pad& p) {
 
 }  // namespace
 
-void StartMouse(void* hwnd) {
-    g_hwnd = static_cast<HWND>(hwnd);
-    RAWINPUTDEVICE mouse{1, 2, 0, g_hwnd};  // generic desktop page, mouse usage
-    RegisterRawInputDevices(&mouse, 1, sizeof(mouse));
-}
+void StartMouse(void* hwnd) { os::Start(hwnd); }
 
 void OnRawInput(void* handle) {
-    RAWINPUT ri;
-    UINT size = sizeof(ri);
-    HRAWINPUT input = static_cast<HRAWINPUT>(handle);
-    if (GetRawInputData(input, RID_INPUT, &ri, &size, sizeof(RAWINPUTHEADER)) == UINT(-1)) return;
-    if (ri.header.dwType != RIM_TYPEMOUSE) return;
-    const RAWMOUSE& m = ri.data.mouse;
+    int dx = 0;
+    int dy = 0;
     int notch = 0;
-    if (m.usButtonFlags & RI_MOUSE_WHEEL) notch = SHORT(m.usButtonData) > 0 ? 1 : -1;
+    bool absolute = false;
+    if (!os::ReadRawMouse(handle, dx, dy, notch, absolute)) return;
     // noted while the settings panel has the input too, so its key capture sees the wheel
     if (notch && Foreground()) g_wheel_ms[notch < 0] = NowMs();
     if (!Active()) return;
     SetKeyboard(true);
     // the cursor is free in the game's menus, where the wheel scrolls unless a key capture takes it
     if (!Play()) {
-        ClipCursor(nullptr);
+        os::Clip(false);
         if (!KeyCaptureUp()) g_wheel += notch;
         return;
     }
     Clip();
-    if (!(m.usFlags & MOUSE_MOVE_ABSOLUTE)) {
-        g_dx += m.lLastX;
-        g_dy += m.lLastY;
+    if (!absolute) {
+        g_dx += dx;
+        g_dy += dy;
     }
 }
 
 void ReleaseCursor() {
-    ClipCursor(nullptr);
+    os::Clip(false);
     g_settle = true;
 }
 
@@ -427,19 +369,15 @@ bool KeyboardActive() { return g_keyboard; }
 bool CursorShown() { return g_menu && g_keyboard; }
 
 bool Cursor(float& x, float& y, bool& down) {
-    POINT p;
-    RECT r;
+    float px, py, w, h;
     if (!Active() || !CursorShown()) return false;
-    if (!GetCursorPos(&p) || !ScreenToClient(g_hwnd, &p) || !GetClientRect(g_hwnd, &r)) return false;
-    if (r.right <= 0 || r.bottom <= 0) return false;
+    if (!os::CursorInWindow(px, py, w, h) || w <= 0 || h <= 0) return false;
     // the frame is shown in the middle of the window
     float aspect = game::Aspect();
-    float w = float(r.right);
-    float h = float(r.bottom);
     float vw = std::min(w, h * aspect);
     float vh = vw / aspect;
-    x = (float(p.x) - (w - vw) / 2) / vw;
-    y = (float(p.y) - (h - vh) / 2) / vh;
+    x = (px - (w - vw) / 2) / vw;
+    y = (py - (h - vh) / 2) / vh;
     down = Down(VK_LBUTTON);
     return true;
 }

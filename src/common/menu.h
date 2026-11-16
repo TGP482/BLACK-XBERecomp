@@ -11,8 +11,10 @@ bool Capturing();  // a key binding waits for a key
 void ToggleMenu();
 void ToggleTextureReplacement();  // the bind's: flips and saves the setting
 void DrawUi(double fps);
-// the game menus' cursor (HCURSOR): cursor.png beside the exe sized to the frame, else the system arrow
+// the game menus' cursor (HCURSOR, SDL_Cursor*): cursor.png beside the exe sized to the frame, else the system arrow
 void* CursorImage();
+void* ArrowCursor();                 // the system arrow
+void ShowCursorImage(void* cursor);  // window thread: the window's cursor, null hides it
 
 // the panel's rows, for the game's own options menu
 namespace rows {

@@ -161,8 +161,15 @@ HCURSOR Build(int frame_height) {
 
 }  // namespace
 
-void* CursorImage() {
+void* ArrowCursor() {
     static HCURSOR arrow = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));  // IDC_ARROW
+    return arrow;
+}
+
+void ShowCursorImage(void* cursor) { SetCursor(static_cast<HCURSOR>(cursor)); }
+
+void* CursorImage() {
+    HCURSOR arrow = static_cast<HCURSOR>(ArrowCursor());
     if (!g_read) ReadCursorFile();
     RECT r;
     HWND hwnd = static_cast<HWND>(Window());

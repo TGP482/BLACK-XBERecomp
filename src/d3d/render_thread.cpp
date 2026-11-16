@@ -9,7 +9,12 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
+#if defined(__x86_64__) || defined(_M_X64)
 #include <smmintrin.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -51,6 +56,7 @@ struct Cmd {
     uint32_t c = 0;
     uint32_t d = 0;
     float f = 0;
+    float g = 0;
     // data and size: bytes in Batch::bytes
     uint32_t data = 0;
     uint32_t size = 0;
@@ -99,6 +105,7 @@ std::vector<Range> StateRanges() {
 }
 
 // equal bytes, 16 at a time: most of the state is compared on every draw
+#if defined(__x86_64__) || defined(_M_X64)
 bool Same(const uint8_t* a, const uint8_t* b, size_t n) {
     size_t i = 0;
     __m128i diff = _mm_setzero_si128();
@@ -121,6 +128,14 @@ bool SamePiece(const uint8_t* a, const uint8_t* b) {
     }
     return _mm_testz_si128(diff, diff);
 }
+#else
+// arm64: the C library's memcmp is the vector code here
+bool Same(const uint8_t* a, const uint8_t* b, size_t n) { return !std::memcmp(a, b, n); }
+
+constexpr size_t kPiece = 64;  // bytes compared and sent at once
+
+bool SamePiece(const uint8_t* a, const uint8_t* b) { return !std::memcmp(a, b, kPiece); }
+#endif
 
 using Clock = std::chrono::steady_clock;
 uint64_t Ns(Clock::time_point t) {
@@ -192,10 +207,12 @@ public:
 
     // rects and points are taken now; the copy itself, CPU or GPU, runs in order like the console's
     void Copy(const Surface& src, const Surface& dst, uint32_t count, uint32_t src_rects,
-              uint32_t dst_points) override {
+              uint32_t dst_points, float src_kx, float src_ky) override {
         auto t = Clock::now();
         Cmd c{Op::Copy};
         c.a = count;
+        c.f = src_kx;
+        c.g = src_ky;
         c.b = count && src_rects ? Scratch(kernel::HostPtr(src_rects), count * 16) : 0;
         c.c = count && dst_points ? Scratch(kernel::HostPtr(dst_points), count * 8) : 0;
         c.s1 = src;
@@ -433,10 +450,16 @@ private:
     }
 
     void Run() {
+#ifdef _WIN32
         using SetDescription = HRESULT(WINAPI*)(HANDLE, PCWSTR);
         if (auto set = reinterpret_cast<SetDescription>(
                 reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"))))
             set(GetCurrentThread(), L"render");
+#elif defined(__APPLE__)
+        pthread_setname_np("render");  // Apple's names the calling thread only
+#else
+        pthread_setname_np(pthread_self(), "render");
+#endif
         for (;;) {
             Batch* b;
             {
@@ -481,7 +504,7 @@ private:
             }
             case Op::Draw: inner_->Draw(state_, c.a, c.b, c.c, c.d ? data : nullptr); break;
             case Op::Clear: inner_->Clear(state_, c.a, c.size ? data : nullptr, c.b, c.c, c.f, c.d); break;
-            case Op::Copy: inner_->Copy(c.s1, c.s2, c.a, c.b, c.c); break;
+            case Op::Copy: inner_->Copy(c.s1, c.s2, c.a, c.b, c.c, c.f, c.g); break;
             case Op::Present: inner_->Present(c.s1); break;
             case Op::Sync: inner_->Sync(c.a, 0); break;
             case Op::RecordLate: inner_->RecordLate(c.a); break;

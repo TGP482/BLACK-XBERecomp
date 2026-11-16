@@ -23,6 +23,7 @@
 #include <SDL3/SDL.h>
 
 #include "app/app.h"
+#include "common/message.h"
 #include "core/input.h"
 #include "core/log.h"
 #include "hook_exports.h"
@@ -90,12 +91,16 @@ int64_t NowMs() {
 
 fs::path CompilerDir() { return ExeDir() / "compiler"; }
 
+// toml++ reads the bytes as UTF-8; path::string() narrows through the ANSI code page, so a folder with an accent in
+// its name is not found
+toml::table ParseConfig(const fs::path& path) { return toml::parse_file(path.u8string()); }
+
 // the config in compiler\config whose [xbe] path is this xbe; an included one has no path
 fs::path ConfigFor(const std::string& xbe) {
     std::error_code ec;
     for (auto& e : fs::directory_iterator(CompilerDir() / "config", ec)) {
         try {
-            toml::table t = toml::parse_file(e.path().string());
+            toml::table t = ParseConfig(e.path());
             if (fs::path(t["xbe"]["path"].value_or(std::string())).filename() == xbe) return e.path();
         } catch (const toml::parse_error&) {
         }
@@ -192,7 +197,7 @@ struct Job {
 
 uint32_t PartitionCount(const Image& image) {
     try {
-        toml::table t = toml::parse_file(image.config.string());
+        toml::table t = ParseConfig(image.config);
         return uint32_t(t["xbe"]["partitions"].value_or(int64_t(0)));
     } catch (const toml::parse_error&) {
         return 0;
@@ -751,13 +756,13 @@ void ShowFailure() {
     std::wstring text = L"Preparing the game failed. " + g_failure;
     if (std::wstring tail = CompileLogTail(); !tail.empty()) text += L"\n\nThe last lines of the log:\n\n" + tail;
     text += L"\n\nThe full details are in logs\\compile.log.";
-    MessageBoxW(nullptr, text.c_str(), kGame.title, MB_ICONERROR);
+    ShowError(kGame.title, text);
 }
 
 // the build on its own thread, the window on this one; false when it failed, the player stopped it, or chose Exit
 bool BuildWithWindow(std::vector<Target>& targets) {
     if (std::wstring blocker = Blocker(targets); !blocker.empty()) {
-        MessageBoxW(nullptr, blocker.c_str(), kGame.title, MB_ICONERROR);
+        ShowError(kGame.title, blocker);
         return false;
     }
     SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);  // no sleep while it works
@@ -796,8 +801,7 @@ bool PrepareGameCode(const GameFiles& game) {
     if (!built) return false;
     for (const Image& image : images)
         if (image.xbe == IMAGE_XBE && dispatch::Load(CodeDll(image))) return true;
-    MessageBoxW(nullptr, L"The game's code could not be loaded, see the log in the logs folder.", kGame.title,
-                MB_ICONERROR);
+    ShowError(kGame.title, L"The game's code could not be loaded, see the log in the logs folder.");
     return false;
 }
 

@@ -11,6 +11,10 @@
 #endif
 #include <windows.h>
 
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
 #include <toml++/toml.hpp>
 
 #include "app/app.h"
@@ -29,9 +33,9 @@ constexpr uint32_t kHostApplyDisplay = WM_APP + 1;  // main.cpp's kApplyDisplay
 constexpr intptr_t kKeyWasDown = 1 << 30;  // WM_KEYDOWN lParam: a held key's repeat
 
 // the panel shows the system arrow, the game's menus their own cursor, play none
-HCURSOR WindowCursor() {
-    if (app::MenuOpen()) return LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));  // IDC_ARROW
-    if (input::CursorShown()) return static_cast<HCURSOR>(app::CursorImage());
+void* WindowCursor() {
+    if (app::MenuOpen()) return app::ArrowCursor();
+    if (input::CursorShown()) return app::CursorImage();
     return nullptr;
 }
 
@@ -83,7 +87,7 @@ bool Message(void* hwnd, uint32_t msg, uintptr_t wp, intptr_t lp, intptr_t* resu
             break;
         case WM_SETCURSOR:
             if (LOWORD(lp) == HTCLIENT) {
-                SetCursor(WindowCursor());
+                app::ShowCursorImage(WindowCursor());
                 *result = TRUE;
                 return true;
             }
@@ -149,8 +153,9 @@ void Rumble(int port, uint16_t& left, uint16_t& right) {
     right = uint16_t(std::min(right * percent / 100, 0xFFFFu));
 }
 
-// the Windows display language when the game has it, else English
+// the system's display language when the game has it, else English
 std::string SystemLanguage() {
+#ifdef _WIN32
     switch (PRIMARYLANGID(GetUserDefaultUILanguage())) {
         case LANG_FRENCH: return "fra";
         case LANG_GERMAN: return "deu";
@@ -158,6 +163,24 @@ std::string SystemLanguage() {
         case LANG_SPANISH: return "esp";
         default: return "int";
     }
+#elif defined(__APPLE__)
+    // the current locale, which follows the system's order of preferred languages
+    CFLocaleRef locale = CFLocaleCopyCurrent();
+    char text[32] = {};
+    if (locale) {
+        CFStringGetCString(CFLocaleGetIdentifier(locale), text, sizeof(text), kCFStringEncodingUTF8);
+        CFRelease(locale);
+    }
+    std::string identifier(text);
+    std::string language = identifier.substr(0, identifier.find_first_of("_-"));
+    if (language == "fr") return "fra";
+    if (language == "de") return "deu";
+    if (language == "it") return "ita";
+    if (language == "es") return "esp";
+    return "int";
+#else
+    return "int";  // no display language to read here: the player picks one in the panel
+#endif
 }
 
 float ReadFloat(const toml::table& t, const char* key, float fallback) {

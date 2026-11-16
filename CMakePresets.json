@@ -21,11 +21,29 @@
         {"name": "release", "displayName": "Release", "inherits": "base",
          "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}},
         {"name": "relwithdebinfo", "displayName": "RelWithDebInfo", "inherits": "base",
-         "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}}
+         "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "mac-base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "arm64"
+            },
+            "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}
+        },
+        {"name": "mac-debug", "displayName": "macOS Debug", "inherits": "mac-base",
+         "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}},
+        {"name": "mac-release", "displayName": "macOS Release", "inherits": "mac-base",
+         "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}}
     ],
     "buildPresets": [
         {"name": "debug", "configurePreset": "debug"},
         {"name": "release", "configurePreset": "release"},
-        {"name": "relwithdebinfo", "configurePreset": "relwithdebinfo"}
+        {"name": "relwithdebinfo", "configurePreset": "relwithdebinfo"},
+        {"name": "mac-debug", "configurePreset": "mac-debug"},
+        {"name": "mac-release", "configurePreset": "mac-release"}
     ]
 }

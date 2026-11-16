@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <string_view>
 #include <thread>
 
 #include "app/app.h"
@@ -655,7 +656,10 @@ void SkipVideo(X86Context&, uint8_t*) {
         G<float>(movie + kMovieClockStep) = G<float>(game_object + kGameClockStep);
     }
     if (background || state < 2 || state > kFilmPlaying) return;
-    std::string name = ReadCString(player + kFilmName, 8);
-    bool intro = name.rfind("LO_", 0) == 0 || name.rfind("02_", 0) == 0;
+    // the three bytes the prefixes need, read here rather than a std::string on every film frame
+    char head[3] = {char(G<uint8_t>(player + kFilmName)), char(G<uint8_t>(player + kFilmName + 1)),
+                    char(G<uint8_t>(player + kFilmName + 2))};
+    std::string_view name(head, sizeof(head));
+    bool intro = name.starts_with("LO_") || name.starts_with("02_");
     if (pressed || (game::Opt().skip_intros && intro)) G<uint8_t>(player + kFilmStop) = 1;
 }
