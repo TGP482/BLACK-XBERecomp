@@ -720,10 +720,10 @@ index 3258a02..3be0949 100644
          key = now;
 diff --git a/sdk/runtime/app/window_sdl.cpp b/sdk/runtime/app/window_sdl.cpp
 new file mode 100644
-index 0000000..7fb73f7
+index 0000000..207a3a8
 --- /dev/null
 +++ b/sdk/runtime/app/window_sdl.cpp
-@@ -0,0 +1,502 @@
+@@ -0,0 +1,501 @@
 +// The Linux host's window (window_sdl.h): an SDL3 window and its events in place of the Win32 window and message
 +// loop. Events reach GameInfo::message as the Win32 messages a game already handles: keys as WM_KEYDOWN with the
 +// virtual key at that position, typed text as WM_CHAR, relative mouse motion and wheel as WM_INPUT carrying an
@@ -1225,7 +1225,6 @@ index 0000000..7fb73f7
 +}
 +
 +}  // namespace app
-+
 diff --git a/sdk/runtime/app/window_sdl.h b/sdk/runtime/app/window_sdl.h
 new file mode 100644
 index 0000000..6e02cc6
